@@ -1,0 +1,16 @@
+# Files created by IDEs etc...
+.idea/
+.ipynb_checkpoints/
+.vscode/
+.gitignore
+__pycache__/
+venv/
+
+# User files created by the program.
+Dataset_large/
+saved_models/
+checkpoints/
+logs/
+
+# Optional directory for personal testing.
+ignore/
