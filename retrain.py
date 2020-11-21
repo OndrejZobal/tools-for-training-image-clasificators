@@ -7,43 +7,60 @@ Copyright 2020 Ondřej Zobal
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of
 this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to 
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell 
-copies of the Software, and to permit persons to whom the Software is 
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
 furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in 
+The above copyright notice and this permission notice shall be included in
 all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR 
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL 
-THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR 
-OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, 
-ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR 
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 OTHER DEALINGS IN THE SOFTWARE.
 
 End license text.
 '''
-
-import mutetf   # This mutes tensorflow info logging. Not required
+# This mutes tensorflow info logging. Not required.
+import mute_tensorflow_warnings
+# Used for computing class weights of the datasets.
 from sklearn.utils.class_weight import compute_class_weight
+# Oprimizers used for training.
 from tensorflow.keras.optimizers import Adam, RMSprop
+# A Class used for creating a generator for the dataset.
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
+# Loading the efficient pretrained model used for transfer learning.
 from tensorflow.keras.applications.inception_v3 import \
-    preprocess_input as PreInception  # Preprocessing input for inception
+    preprocess_input as PreInception  # TODO something about choosing other models.
+# Preprocessing the input input for the pretrained inception.
+# TODO better way of doing this.
 from tensorflow.keras.applications.inception_v3 import preprocess_input
 from tensorflow.keras.applications.vgg16 import preprocess_input, decode_predictions
+# Layers that will be used
 from tensorflow.keras.layers import Dense, Flatten, Dropout
+# Object for building the model
 from tensorflow.keras.models import Model, Sequential
+# The library for converting the model to the TensorFLow format.
 from tensorflow import lite
+# Importing the TensorFlow itself.
 import tensorflow as tf
+# A library for drawing graphs.
 import matplotlib.pyplot as plt
+# A library for manipulating images.
 import PIL
+# A library for mathematics.
 import numpy as np
+# A library for interacting with the system.
 import sys
+# A library for multy-platforms filepaths.
 import pathlib
+# A library for getting the date and time (for the timestamps).
 import datetime
+# A library for interacting with the operating system.
 import os
 
 
@@ -126,6 +143,7 @@ def test_step(x, y, val_acc_metric):
 
 def train_test(train, dataset, epoch, lr, sample_weight):
     loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
+    loss_value = None
     acc_metric = tf.keras.metrics.CategoricalCrossentropy()
     val_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
 
@@ -148,7 +166,8 @@ def train_test(train, dataset, epoch, lr, sample_weight):
                 acc_metric = test_step(x_batch, y_batch, val_acc_metric)
 
             print(
-                f'\rEpoch: {epoch}\tProgress: {step / (len(dataset)/batch_size) * 100}%\t Accuracy: {acc_metric.result()}%')    # TODO Add loss
+                f'\rEpoch: {epoch}\tProgress: {step / (len(dataset)/batch_size) * 100}%\tAccuracy: {acc_metric.result()}%', end='')    # TODO Add loss
+            print(f'\tLoss: {loss_value}' if train else '')
 
             # Log every 200 batches.
             # Interrupt when the dataset generator loops forever
