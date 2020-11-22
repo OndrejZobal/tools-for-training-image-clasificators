@@ -18,7 +18,7 @@ You simply execute the file and add appropriate arguments. To see the list of ar
 
 ## Installation
 
-Make sure you have _Python 3_ and _pip_ installed. Then run `# python3 -m pip -r requirements.txt`. Then **make sure** you have the nescessary software to allow your _GPU_ to be used by _TensorFlow_. If you don't have a dedicated _GPU_, uninstall `tensorflow-gpu` and install `tensorflow-cpu`. Then you should be good to go.
+Make sure you have _Python 3_ and _pip_ installed. Then run `# python3 -m pip -r requirements.txt`. Consider doing this in a virtual environment so that you don't have version conflicts. Then **make sure** you have the nescessary software to allow your _GPU_ to be used by _TensorFlow_. If you don't have a dedicated _GPU_, uninstall `tensorflow-gpu` and install `tensorflow-cpu`. Then you should be good to go.
 
 ## Contributions
 
