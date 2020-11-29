@@ -66,9 +66,9 @@ import os
 
 '''  PARAMETERS - Change these values. '''
 # Paths to individual dataset categories
-train_dir = 'Dataset_large/Training'
-test_dir = 'Dataset_large/Validation'
-finetuning_dir = 'Dataset_large/Finetuning'
+train_dir = 'dataset/Training'
+test_dir = 'dataset/Validation'
+finetuning_dir = 'dataset/Finetuning'
 
 log_dir = 'logs/'  # TensorBoard log directory
 lite_dir = 'lite/'  # Directory where models converted to TFLite will be saved
@@ -121,63 +121,6 @@ char_arg_map = {
     'c': 'count',
     's': 'skip',
     't': 'tensorboard'}
-
-
-# @tf.function
-def train_step(x, y, acc_metric, loss_fn):
-    with tf.GradientTape() as tape:
-        logits = new_model(x, training=True)
-        loss_value = loss_fn(y, logits)
-    grads = tape.gradient(loss_value, new_model.trainable_weights)
-    optimizer.apply_gradients(zip(grads, new_model.trainable_weights))
-    acc_metric.update_state(y, logits)
-    return loss_value, acc_metric
-
-
-# @tf.function
-def test_step(x, y, val_acc_metric):
-    val_logits = new_model(x, training=False)
-    val_acc_metric.update_state(y, val_logits)
-    return val_acc_metric
-
-
-def train_test(train, dataset, epoch, lr, sample_weight):
-    loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
-    loss_value = None
-    acc_metric = tf.keras.metrics.CategoricalCrossentropy()
-    val_acc_metric = tf.keras.metrics.SparseCategoricalAccuracy()
-
-    train_acc = None
-    for epoch in range(epochs):
-        print('\nStart of epoch %d' % (epoch,))
-
-        # Iterate over the batches of the dataset.
-        for step, (x_batch, y_batch) in enumerate(dataset):
-            if train:
-                loss_value, acc_metric = train_step(
-                    x_batch, y_batch, acc_metric, loss_fn)
-                if step % 200 == 0:
-                    print(
-                        'Training loss (for one batch) at step %d: %.4f'
-                        % (step * batch_size, float(loss_value))
-                    )
-                    print('Seen so far: %s samples' % ((step + 1) * 64))
-            else:
-                acc_metric = test_step(x_batch, y_batch, val_acc_metric)
-
-            print(
-                f'\rEpoch: {epoch}\tProgress: {step / (len(dataset)/batch_size) * 100}%\tAccuracy: {acc_metric.result()}%', end='')    # TODO Add loss
-            print(f'\tLoss: {loss_value}' if train else '')
-
-            # Log every 200 batches.
-            # Interrupt when the dataset generator loops forever
-            if step == int(len(dataset) / batch_size):
-                break
-
-        train_acc = acc_metric.result()
-        print(f'Accuracy over epoch {train_acc}')
-        acc_metric.reset_states()
-    return train_acc
 
 
 def train(model, train, ds, epoch, lr, sample_weight):
@@ -479,6 +422,9 @@ if run:
                                                       batch_size=batch_size,
                                                       shuffle=False)
 
+    # TODO Remove this debug shit
+    print(generator_train.class_indices)
+
     # Obtaining the class ID numbers
     # Getting a list of all the classes
     class_names = list(generator_train.class_indices.keys())
@@ -524,8 +470,8 @@ if run:
         accuracy = None
         if EXPERIMENTAL:
             print(f'Class weight: {class_weight_test}')
-            accuracy = train_test(True, generator_train,
-                                  epochs, learning_rate_train, class_weight_train)
+            accuracy = train(new_model, generator_train,
+                             generator_test, epochs, optimizer)
         else:
             # Training - (training the classification layer)
             new_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)

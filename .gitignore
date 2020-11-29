@@ -7,7 +7,7 @@ __pycache__/
 venv/
 
 # User files created by the program.
-Dataset_large/
+dataset/
 saved_models/
 checkpoints/
 logs/

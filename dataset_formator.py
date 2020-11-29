@@ -63,7 +63,7 @@ def prompt(ratio=None, source=None, destination=None):
                     ratio = None
                     return prompt(ratio, source, destination)
             if sum(ratio) > 1:  # If the sum of all the numbers is grater than one
-                print('Sum of values too large!')
+                print('Sum of values is greater than 1!')
                 ratio = None
                 return prompt(ratio, source, destination)
         else:
@@ -251,8 +251,7 @@ def main():
     banner()
 
     # Getting the basic parameters
-    ratio, source, destination = prompt([0.60, 0.80], pathlib.Path(r'D:\\Houby\\'), pathlib.Path(
-        rf'D:\\OwnCloud Folder\\Projekty\\IBM\\Clasifier\\retrain\\Dataset_large\\'))
+    ratio, source, destination = prompt()
 
     # Display the progress bar
     prog_bar = threading.Thread(target=progress_bar)
