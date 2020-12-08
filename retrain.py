@@ -78,11 +78,11 @@ name = 'model'  # Default model filename
 
 loss = 'categorical_crossentropy'
 metrics = ['categorical_accuracy']
-batch_size = 5  # Size of a batch
+batch_size = 50  # Size of a batch
 epochs = 20  # The default number of training cycles
 dense_amount = 2048  # The size of the classification dense layer
 dense_count = 3
-learning_rate_train = 1e-3  # Originally 1e-5
+learning_rate_train = 1e-5  # Originally 1e-5
 learning_rate_finetuning = 1e-7
 
 # Changing the paths into absolute ones.
@@ -105,7 +105,7 @@ save_as_lite = False  # Also export the trained model as lite?
 timestamp = str(datetime.datetime.now()).replace(
     " ", "-").replace(":", ".")  # Creating timestamp for exported  files
 
-EXPERIMENTAL = True
+EXPERIMENTAL = False
 
 '''  PROCESSING ARGUMENTS  '''
 # The map translating the single char arguments into full string arguments.
@@ -360,6 +360,7 @@ if len(sys.argv) > 0:
                             1] == '-':  # Handeling 'double dash, whole word! syntax. This will permit passing aditional arguments
                         skip = process_arg(sys.argv[arg][2:], next_arg)
 
+print(skip_finetuning, '\n\n\n\n\n\n\n')
 '''  SETTING UP CALLBACKS, GENERATORS, ETC...  '''
 if run:
     # Load the default starting model
@@ -484,7 +485,8 @@ if run:
                 f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
             # Finetuning - (training the whole model)
-            if skip_finetuning:
+            if not skip_finetuning:
+                print('\n\n\nFinetuning just ran\n\n')
                 for layers in loaded_model.layers:
                     layers.trainable = True
                 new_model.compile(optimizer=optimizer_finetuning,
@@ -504,7 +506,7 @@ if run:
     print(f'Exporting trained model at {timestamp_path}')
     os.mkdir(f'{timestamp_path}')
     # new_model.save(f'{timestamp_path}')  # Save the model
-    new_model.save('the real deal')  # Save the model
+    new_model.save(timestamp_path)  # Save the model
 
     # Exporting the class names into the model's directory
     with open(timestamp_path.joinpath('classes'), 'a') as file:
@@ -513,7 +515,7 @@ if run:
 
     # Printing the summary
     print(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
-    | pictures:\t{steps_per_epoch * batch_size} | accuracy:\t{str(int(accuracy))}%')
+    | pictures:\t{steps_per_epoch * batch_size} | accuracy:\t{str(accuracy)}%')
 
 # Saving converting the model to TFLite (optional)
 if save_as_lite:
