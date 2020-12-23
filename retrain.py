@@ -25,6 +25,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 
 End license text.
 '''
+
 # This mutes tensorflow info logging. Not required.
 import mute_tensorflow_warnings
 # Used for computing class weights of the datasets.
@@ -35,13 +36,9 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # Loading the efficient pretrained model used for transfer learning.
 from tensorflow.keras.applications.inception_v3 import \
-    preprocess_input as PreInception  # TODO something about choosing other models.
-# Preprocessing the input input for the pretrained inception.
-# TODO better way of doing this.
-from tensorflow.keras.applications.inception_v3 import preprocess_input
-from tensorflow.keras.applications.vgg16 import preprocess_input, decode_predictions
+    preprocess_input as PreProcess  # TODO something about choosing other models.
 # Layers that will be used
-from tensorflow.keras.layers import Dense, Flatten, Dropout
+from tensorflow.keras.layers import Dense, Flatten, Dropout, Input
 # Object for building the model
 from tensorflow.keras.models import Model, Sequential
 # The library for converting the model to the TensorFLow format.
@@ -63,34 +60,26 @@ import datetime
 # A library for interacting with the operating system.
 import os
 
-
 '''  PARAMETERS - Change these values. '''
 # Paths to individual dataset categories
-train_dir = 'dataset/Training'
-test_dir = 'dataset/Validation'
-finetuning_dir = 'dataset/Finetuning'
+train_dir = 'Training/'
+validation_dir = 'Validation/'
+finetuning_dir = 'Finetuning/'
+ds_dir = 'dataset/'
 
 log_dir = 'logs/'  # TensorBoard log directory
-lite_dir = 'lite/'  # Directory where models converted to TFLite will be saved
 checkpoint_path = 'checkpoints/'  # Default Checkpoint folder
 saved_model_path = 'saved_models/'  # Default export model directory
 name = 'model'  # Default model filename
 
 loss = 'categorical_crossentropy'
 metrics = ['categorical_accuracy']
-batch_size = 50  # Size of a batch
+batch_size = 5  # Size of a batch
 epochs = 20  # The default number of training cycles
-dense_amount = 2048  # The size of the classification dense layer
-dense_count = 3
-learning_rate_train = 1e-5  # Originally 1e-5
+dense_amount = 256  # The size of the classification dense layer
+dense_count = 1
+learning_rate_train = 1e-5
 learning_rate_finetuning = 1e-7
-
-# Changing the paths into absolute ones.
-full_path = pathlib.Path(__file__).parent.absolute()
-train_dir = full_path.joinpath(train_dir)
-test_dir = full_path.joinpath(test_dir)
-finetuning_dir = full_path.joinpath(finetuning_dir)
-log_dir = full_path.joinpath(log_dir)
 
 # These are changed by the script itself. Please don't change the values yourself
 print_init_banner = True
@@ -104,6 +93,18 @@ is_base = True
 save_as_lite = False  # Also export the trained model as lite?
 timestamp = str(datetime.datetime.now()).replace(
     " ", "-").replace(":", ".")  # Creating timestamp for exported  files
+
+PreTrainedModel = tf.keras.applications.InceptionV3(
+    include_top=False, input_shape=(299, 299, 3))
+
+# Changing the paths into absolute ones.
+log_dir = pathlib.Path(log_dir)
+checkpoint_path = pathlib.Path(checkpoint_path)
+saved_model_path = pathlib.Path(saved_model_path)
+ds_dir = pathlib.Path(ds_dir)
+train_dir = ds_dir.joinpath(train_dir)
+validation_dir = ds_dir.joinpath(validation_dir)
+finetuning_dir = ds_dir.joinpath(finetuning_dir)
 
 EXPERIMENTAL = False
 
@@ -360,13 +361,12 @@ if len(sys.argv) > 0:
                             1] == '-':  # Handeling 'double dash, whole word! syntax. This will permit passing aditional arguments
                         skip = process_arg(sys.argv[arg][2:], next_arg)
 
-print(skip_finetuning, '\n\n\n\n\n\n\n')
 '''  SETTING UP CALLBACKS, GENERATORS, ETC...  '''
 if run:
     # Load the default starting model
     if loaded_model == None:
-        loaded_model = tf.keras.applications.InceptionV3(include_top=True,
-                                                         weights='imagenet')  # TODO Here you can change the default model
+        loaded_model = PreTrainedModel  # TODO Here you can change the default model
+
     input_shape = loaded_model.input.shape[1:3]
 
     # Here you can change the optimizers
@@ -385,7 +385,7 @@ if run:
 
     # Setting up the data generator for all three phases
     # Training data gnerator
-    datagen_train = ImageDataGenerator(preprocessing_function=PreInception,
+    datagen_train = ImageDataGenerator(preprocessing_function=PreProcess,
                                        rotation_range=20,
                                        width_shift_range=0.1,
                                        height_shift_range=0.1,
@@ -400,28 +400,29 @@ if run:
                                                         batch_size=batch_size,
                                                         shuffle=True)
 
-    # Finetuning data generator
-    datagen_funetuning = ImageDataGenerator(preprocessing_function=PreInception,
-                                            rotation_range=20,
-                                            width_shift_range=0.1,
-                                            height_shift_range=0.1,
-                                            shear_range=0.1,
-                                            zoom_range=[0.9, 1.1],
-                                            horizontal_flip=True,
-                                            vertical_flip=True,
-                                            fill_mode='nearest')
-
-    generator_finetuning = datagen_funetuning.flow_from_directory(directory=finetuning_dir,
-                                                                  target_size=input_shape,
-                                                                  batch_size=batch_size,
-                                                                  shuffle=True)
-
     # Test data generator
-    datagen_test = ImageDataGenerator(preprocessing_function=PreInception)
-    generator_test = datagen_test.flow_from_directory(directory=test_dir,
-                                                      target_size=input_shape,
-                                                      batch_size=batch_size,
-                                                      shuffle=False)
+    datagen_validation = ImageDataGenerator(preprocessing_function=PreProcess)
+    datagen_validation = datagen_validation.flow_from_directory(directory=validation_dir,
+                                                                target_size=input_shape,
+                                                                batch_size=batch_size,
+                                                                shuffle=False)
+
+    if not skip_finetuning:
+        # Finetuning data generator
+        datagen_funetuning = ImageDataGenerator(preprocessing_function=PreProcess,
+                                                rotation_range=20,
+                                                width_shift_range=0.1,
+                                                height_shift_range=0.1,
+                                                shear_range=0.1,
+                                                zoom_range=[0.9, 1.1],
+                                                horizontal_flip=True,
+                                                vertical_flip=True,
+                                                fill_mode='nearest')
+
+        generator_finetuning = datagen_funetuning.flow_from_directory(directory=finetuning_dir,
+                                                                      target_size=input_shape,
+                                                                      batch_size=batch_size,
+                                                                      shuffle=True)
 
     # TODO Remove this debug shit
     print(generator_train.class_indices)
@@ -433,54 +434,71 @@ if run:
 
     # Computing class weights
     cls_train = generator_train.classes
-    cls_test = generator_test.classes
+    cls_test = datagen_validation.classes
     class_weight_train = compute_class_weight(
         class_weight='balanced', classes=np.unique(cls_train), y=cls_train)
     class_weight_test = compute_class_weight(
         class_weight='balanced', classes=np.unique(cls_test), y=cls_test)
 
     # Generators do loop forever, so we will need to know when to reset them.
-    steps_validation = generator_test.n / batch_size
+    steps_validation = datagen_validation.n / batch_size
     steps_per_epoch = generator_train.n / batch_size
-    steps_finetuning = generator_finetuning.n / batch_size
+    if not skip_finetuning:
+        steps_finetuning = generator_finetuning.n / batch_size
 
     '''  BUILDING THE MODEL  '''
+
     if (train):
         # Putting the model together
-        new_model = Sequential()
-        new_model.add(loaded_model)
         if is_base:
-            loaded_model = Model(inputs=loaded_model.input,
-                                 outputs=(loaded_model.get_layer(index=len(loaded_model.layers) - 2).output))
             # Freezing the model
             loaded_model.trainable = False
             for layers in loaded_model.layers:
                 layers.trainable = False
             # Adding other layers
-            new_model.add(Flatten())
+            '''
+            new_model = Sequential()
+            new_model.add(loaded_model)
+            new_model.add(tf.keras.layers.Flatten())
+            new_model.add(Input(shape=(dense_amount)))
+            '''
+            # inp = Input(shape=(dense_amount))
+            x = loaded_model.output
+            x = tf.keras.layers.Flatten()(x)
             for i in range(dense_count):
+                '''
+                new_model.add(Dropout(0.5))
                 new_model.add(Dense(dense_amount, activation='relu'))
-            new_model.add(Dropout(0.5))
+                '''
+                x = Dropout(0.5)(x)
+                x = Dense(dense_amount, activation='relu')(x)
             # Output layer
+            '''
             new_model.add(Dense(num_classes, activation='softmax'))
+            '''
+            out = Dense(num_classes, activation='softmax')(x)
 
+            new_model = Model(inputs=loaded_model.input, outputs=out)
+        '''
         # Loading saved weights if any were specified
         if checkpoint_name != None:
             new_model.load_weights(str(full_path.joinpath(checkpoint_name)))
+        '''
+        new_model.summary()
 
         accuracy = None
         if EXPERIMENTAL:
             print(f'Class weight: {class_weight_test}')
             accuracy = train(new_model, generator_train,
-                             generator_test, epochs, optimizer)
+                             datagen_validation, epochs, optimizer)
         else:
             # Training - (training the classification layer)
             new_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
             new_model.fit(x=generator_train, epochs=epochs, steps_per_epoch=steps_per_epoch,
                           callbacks=[
-                              tensorboard_callback, checkpoint_callback], validation_data=generator_test, validation_steps=steps_validation,
-                          class_weight=dict(enumerate(class_weight_train)))
-            accuracy = f'{new_model.evaluate(generator_test, steps=steps_validation)[1]}'
+                              tensorboard_callback, checkpoint_callback], validation_data=datagen_validation, validation_steps=steps_validation,
+                          class_weight=(dict(enumerate(class_weight_train))))
+            accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
             print(
                 f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
@@ -492,16 +510,16 @@ if run:
                 new_model.compile(optimizer=optimizer_finetuning,
                                   loss=loss, metrics=metrics)
                 new_model.fit(x=generator_finetuning, epochs=epochs, steps_per_epoch=steps_finetuning,
-                              validation_data=generator_test,
+                              validation_data=datagen_validation,
                               validation_steps=steps_validation, class_weight=dict(enumerate(class_weight_test)))
-                accuracy = f'{new_model.evaluate(generator_test, steps=steps_validation)[1]}'
+                accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
                 print(
                     f'Finetuning-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
     # Exporting the trained model
     new_model.compile(optimizer=optimizer_finetuning,
                       loss=loss, metrics=metrics)
-    timestamp_path = full_path.joinpath(
+    timestamp_path = pathlib.Path(
         f'{saved_model_path}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_d={dense_amount}_{timestamp}')  # Generate a unique file name
     print(f'Exporting trained model at {timestamp_path}')
     os.mkdir(f'{timestamp_path}')
@@ -521,7 +539,7 @@ if run:
 if save_as_lite:
     print('Saving model as TensorFlow Lite')
     converter = lite.TFLiteConverter.from_saved_model(
-        str(full_path.joinpath(timestamp_path)))
+        str(pathlib.Path(timestamp_path)))
     tflite_model = converter.convert()
     tflite_file_name = f'lite/{name}_{timestamp}.tflite'
     with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
