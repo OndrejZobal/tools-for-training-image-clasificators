@@ -1,4 +1,5 @@
 #!/bin/python
+
 import os
 import sys
 import pathlib
@@ -92,18 +93,16 @@ def map_dir():
     global source_dirs, source_files, source
 
     # Todo use generators
-    rel_path = pathlib.Path()
+    # rel_path = pathlib.Path()
     source_dirs = os.listdir(source)
     new_source_dirs = []
 
     dir_pointer = -1
-    # print(f'Mapping directory: ', end='')
     for i in range(len(source_dirs)):
         if os.path.isdir(source.joinpath(source_dirs[i])):
             source_files.append([])
             dir_pointer += 1
             new_source_dirs.append(source_dirs[i])
-            # print(f'{source_dirs[i]}; ', end='')
             for j in os.listdir(source.joinpath(source_dirs[i])):
                 if os.path.isfile(source.joinpath(source_dirs[i]).joinpath(j)):
                     source_files[dir_pointer].append(j)
@@ -141,11 +140,13 @@ def make_dirs():
             os.mkdir(destination.joinpath(training_name).joinpath(directory))
         except FileExistsError as e:
             pass
+
         # Validation
         try:
             os.mkdir(destination.joinpath(validation_name).joinpath(directory))
         except FileExistsError as e:
             pass
+
         # Finetuning
         if len(ratio) == 2:
             try:
@@ -184,7 +185,7 @@ def make_dataset(index):
     do_finetuning = False
 
     if len(ratio) == 2:
-        range_2 = int(len(source_files[index]) * ratio[1])
+        range_2 = range_1 + int(len(source_files[index]) * ratio[1])
         do_finetuning = True
 
     # Training
@@ -251,7 +252,10 @@ def main():
     banner()
 
     # Getting the basic parameters
-    ratio, source, destination = prompt()
+    ratio, source, destination = prompt([0.6, 0.2], pathlib.Path('D:\\Houby\\'), pathlib.Path(
+        'D:\\NextcloudData\\Projekty\\IBM\\Clasifier\\retrain\\dataset'))
+
+    print(ratio)
 
     # Display the progress bar
     prog_bar = threading.Thread(target=progress_bar)
