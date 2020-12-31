@@ -533,7 +533,7 @@ if run:
 
     # Printing the summary
     print(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
-    | pictures:\t{steps_per_epoch * batch_size} | accuracy:\t{str(accuracy)}%')
+    | pictures:\t{steps_per_epoch * batch_size} | accuracy:\t{str(float(accuracy) * 100)[:6]}%')
 
 # Saving converting the model to TFLite (optional)
 if save_as_lite:
