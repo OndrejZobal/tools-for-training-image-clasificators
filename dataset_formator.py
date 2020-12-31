@@ -7,6 +7,7 @@ import time
 import threading
 from shutil import copyfile
 from shutil import copy
+import code
 
 training_name = 'Training'
 validation_name = 'Validation'
@@ -16,10 +17,15 @@ ratio = None
 source = None
 destination = None
 do_symlink = True
+do_print_dirs = True
 thread_stop = False
 
 source_dirs = []
 source_files = []
+
+sub_avg = []
+sub_acc = []
+amounts = []
 
 phase = 0
 progress_class = 0
@@ -90,7 +96,7 @@ def prompt(ratio=None, source=None, destination=None):
 
 
 def map_dir():
-    global source_dirs, source_files, source
+    global source_dirs, source_files, source, sub_acc, sub_avg
 
     # Todo use generators
     # rel_path = pathlib.Path()
@@ -108,6 +114,21 @@ def map_dir():
                     source_files[dir_pointer].append(j)
 
     source_dirs = new_source_dirs
+
+    total_sum = 0
+    for i, dir in enumerate(source_dirs):
+        total_sum += len(source_files[i])
+    average = total_sum / len(source_files)
+
+    for i, dir in enumerate(source_dirs):
+        if len(source_files[i]) < average/3*2:
+            sub_acc.append(i)
+            amounts.append(0)
+        elif len(source_files[i]) < average:
+            sub_avg.append(i)
+            amounts.append(int(average / len(source_files[i])))
+        else:
+            amounts.append(1)
 
 
 def make_dirs():
@@ -133,7 +154,10 @@ def make_dirs():
         except FileExistsError as e:
             pass
 
-    for directory in source_dirs:
+    for i, directory in enumerate(source_dirs):
+        if i in sub_acc:
+            continue
+
         # Making the main directories
         # Training
         try:
@@ -174,6 +198,19 @@ def create(src, dest):
             pass
 
 
+def make_dataset_dirs(path, destination_name, rng, index, amount):
+    global progress_file
+    progress = 0
+    while True:
+        for i in range(rng[0], rng[1]):
+            if progress >= amount:
+                return
+            create(path.joinpath(source_files[index][i]),
+                   destination.joinpath(destination_name).joinpath(source_dirs[index]).joinpath(f'{progress}-{source_files[index][i]}'))
+            progress_file += 1
+            progress += 1
+
+
 def make_dataset(index):
     global destination, source, source_dirs, source_files, ratio, progress_file
 
@@ -182,30 +219,68 @@ def make_dataset(index):
 
     range_1 = int(len(source_files[index]) * ratio[0])
     range_2 = int(len(source_files[index]))
+    ratio2_val = 1 - ratio[0]
     do_finetuning = False
 
     if len(ratio) == 2:
         range_2 = range_1 + int(len(source_files[index]) * ratio[1])
+        ratio2_val = ratio[1]
         do_finetuning = True
 
+        # Finetuning
+        '''
+        if do_finetuning:
+            for i in range(range_2, len(source_files[index])):
+                create(dataset_path_src.joinpath(source_files[index][i]),
+                    destination.joinpath(finetuning_name).joinpath(source_dirs[index]).joinpath(source_files[index][i]))
+                progress_file += 1
+        '''
+        make_dataset_dirs(dataset_path_src, finetuning_name, [range_2, len(source_files[index])], index, len(
+            source_files[index]) * (1 - (ratio[0] + ratio[1])) * amounts[index])
+
     # Training
+    '''
     for i in range(range_1):
         create(dataset_path_src.joinpath(source_files[index][i]),
                destination.joinpath(training_name).joinpath(source_dirs[index]).joinpath(source_files[index][i]))
         progress_file += 1
+    '''
+    make_dataset_dirs(dataset_path_src, training_name, [0, range_1], index, len(
+        source_files[index]) * ratio[0] * amounts[index])
 
     # Validation
+    '''
     for i in range(range_1, range_2):
         create(dataset_path_src.joinpath(source_files[index][i]),
                destination.joinpath(validation_name).joinpath(source_dirs[index]).joinpath(source_files[index][i]))
         progress_file += 1
+    '''
+    make_dataset_dirs(dataset_path_src, validation_name, [range_1, range_2], index, len(
+        source_files[index]) * ratio2_val * amounts[index])
 
-    # Finetuning
-    if do_finetuning:
-        for i in range(range_2, len(source_files[index])):
-            create(dataset_path_src.joinpath(source_files[index][i]),
-                   destination.joinpath(finetuning_name).joinpath(source_dirs[index]).joinpath(source_files[index][i]))
-            progress_file += 1
+
+def print_dirs():
+    total_sum = 0
+    for i, dir in enumerate(source_dirs):
+        total_sum += len(source_files[i])
+    average = total_sum / len(source_files)
+    print(f'\nThe average amount of files is {int(average)}.\n')
+
+    print(f'List of directories')
+    for i, dir in enumerate(source_dirs):
+        print(f'{dir}\t\t\t\t\thas {len(source_files[i])} samples', end='')
+        if len(source_files[i]) < average/3*2:
+            print(' (BELLOW ACCEPTABLE.)')
+        elif len(source_files[i]) < average:
+            print(' (Bellow average.)')
+        else:
+            print('.')
+
+    print(
+        f'\nThere are {len(source_dirs)-len(sub_acc)-len(sub_avg)} heathy datasets.')
+    print(f'There are {len(sub_avg)} files that are bellow average.')
+    print(
+        f'There are {len(sub_acc)} files that have issufitient amount of sampless.\n')
 
 
 def progress_bar():
@@ -226,8 +301,8 @@ def progress_bar():
         print(string)
 
     files_total = 0
-    for obj in source_files:
-        files_total += len(obj)
+    for i, obj in enumerate(source_files):
+        files_total += len(obj) * amounts[i]
     print(files_total)
 
     print('\n' * 3)
@@ -252,8 +327,7 @@ def main():
     banner()
 
     # Getting the basic parameters
-    ratio, source, destination = prompt([0.6, 0.2], pathlib.Path('D:\\Houby\\'), pathlib.Path(
-        'D:\\NextcloudData\\Projekty\\IBM\\Clasifier\\retrain\\dataset'))
+    ratio, source, destination = prompt()
 
     print(ratio)
 
@@ -261,18 +335,26 @@ def main():
     prog_bar = threading.Thread(target=progress_bar)
     prog_bar.start()
 
-    # Now i kindda need to look it all up
     phase = 1
+    print('mapping dirs')
     map_dir()
+    print('done mapping dirs')
+
+    # Prints all the directories with the amount of pictures in them
+    if do_print_dirs:
+        print_dirs()
+    print('Done printing dirs')
 
     # Create the directory structure
     phase = 2
     make_dirs()
+    print('making dirs')
 
     # Copy files into the new dirs
     for i in range(len(source_dirs)):
         make_dataset(i)
         progress_class += 1
+    print('done making dataset')
 
     phase = 3
     prog_bar.join()
