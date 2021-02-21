@@ -13,6 +13,10 @@ training_name = 'Training'
 validation_name = 'Validation'
 finetuning_name = 'Finetuning'
 
+CALCULATE_THRESHOLD_AUTOMATICALLY = False
+class_overfit_amount = 300
+class_exclude_amount = 200
+
 ratio = None
 source = None
 destination = None
@@ -96,7 +100,7 @@ def prompt(ratio=None, source=None, destination=None):
 
 
 def map_dir():
-    global source_dirs, source_files, source, sub_acc, sub_avg
+    global source_dirs, source_files, source, sub_acc, sub_avg, CALCULATE_THRESHOLD_AUTOMATICALLY, class_overfit_amount, class_exclude_amount
 
     # Todo use generators
     # rel_path = pathlib.Path()
@@ -120,11 +124,15 @@ def map_dir():
         total_sum += len(source_files[i])
     average = total_sum / len(source_files)
 
+    if CALCULATE_THRESHOLD_AUTOMATICALLY and class_overfit_amount == 0 and class_exclude_amount == 0:
+        class_overfit_amount = total_sum / len(source_files)
+        class_exclude_amount = class_overfit_amount/3*2
+
     for i, dir in enumerate(source_dirs):
-        if len(source_files[i]) < average/3*2:
+        if len(source_files[i]) < class_exclude_amount:
             sub_acc.append(i)
             amounts.append(0)
-        elif len(source_files[i]) < average:
+        elif len(source_files[i]) < class_overfit_amount:
             sub_avg.append(i)
             amounts.append(int(average / len(source_files[i])))
         else:
@@ -327,7 +335,8 @@ def main():
     banner()
 
     # Getting the basic parameters
-    ratio, source, destination = prompt()
+    ratio, source, destination = prompt(
+        [0.8], pathlib.Path('/winD/Houby/'), pathlib.Path('./dataset'))
 
     print(ratio)
 
