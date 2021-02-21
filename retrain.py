@@ -74,9 +74,9 @@ name = 'model'  # Default model filename
 
 loss = 'categorical_crossentropy'
 metrics = ['categorical_accuracy']
-batch_size = 5  # Size of a batch
+batch_size = 8  # Size of a batch
 epochs = 20  # The default number of training cycles
-dense_amount = 256  # The size of the classification dense layer
+dense_amount = 64  # The size of the classification dense layer
 dense_count = 1
 learning_rate_train = 1e-5
 learning_rate_finetuning = 1e-7
@@ -85,6 +85,7 @@ learning_rate_finetuning = 1e-7
 print_init_banner = True
 checkpoint_name = None
 skip_finetuning = False
+skip_training = False
 run = True  # Used for disabling the training process itself. ex. printing help
 train = True  # Controls skipping another phaze
 # A variable for models loaded through the command line arguments.
@@ -193,9 +194,9 @@ def arg_load(next_arg):
     global loaded_model
     global is_base
     global timestamp_path
-    path = full_path.joinpath(next_arg)
+    path = pathlib.Path(next_arg)
     print(
-        f'\nLoading a full model from {path}.\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n')
+        f'\nLoading a full model from {path}.\n')
     loaded_model = tf.keras.models.load_model(path)
     is_base = False
     timestamp_path = path
@@ -263,7 +264,7 @@ def arg_dense_count(next_arg):
 # Loads a specified model as the base model
 def arg_base(next_arg):
     global loaded_model
-    path = full_path.joinpath(next_arg)
+    path = pathlib.Path(next_arg)
     print(f'\nLoading a base model from {path}.\n')
     loaded_model = tf.keras.models.load_model(path)
     return True
@@ -424,7 +425,7 @@ if run:
                                                                       batch_size=batch_size,
                                                                       shuffle=True)
 
-    # TODO Remove this debug shit
+    # TODO debug
     print(generator_train.class_indices)
 
     # Obtaining the class ID numbers
@@ -449,12 +450,15 @@ if run:
     '''  BUILDING THE MODEL  '''
 
     if (train):
+
         # Putting the model together
         if is_base:
+
             # Freezing the model
             loaded_model.trainable = False
             for layers in loaded_model.layers:
                 layers.trainable = False
+
             # Adding other layers
             '''
             new_model = Sequential()
@@ -462,6 +466,7 @@ if run:
             new_model.add(tf.keras.layers.Flatten())
             new_model.add(Input(shape=(dense_amount)))
             '''
+
             # inp = Input(shape=(dense_amount))
             x = loaded_model.output
             x = tf.keras.layers.Flatten()(x)
@@ -472,6 +477,7 @@ if run:
                 '''
                 x = Dropout(0.5)(x)
                 x = Dense(dense_amount, activation='relu')(x)
+
             # Output layer
             '''
             new_model.add(Dense(num_classes, activation='softmax'))
@@ -479,6 +485,9 @@ if run:
             out = Dense(num_classes, activation='softmax')(x)
 
             new_model = Model(inputs=loaded_model.input, outputs=out)
+
+        else:
+            new_model = loaded_model
         '''
         # Loading saved weights if any were specified
         if checkpoint_name != None:
@@ -486,25 +495,30 @@ if run:
         '''
         new_model.summary()
 
-        accuracy = None
+        accuracy = '0'
+
         if EXPERIMENTAL:
             print(f'Class weight: {class_weight_test}')
             accuracy = train(new_model, generator_train,
                              datagen_validation, epochs, optimizer)
+
         else:
-            # Training - (training the classification layer)
-            new_model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
-            new_model.fit(x=generator_train, epochs=epochs, steps_per_epoch=steps_per_epoch,
-                          callbacks=[
-                              tensorboard_callback, checkpoint_callback], validation_data=datagen_validation, validation_steps=steps_validation,
-                          class_weight=(dict(enumerate(class_weight_train))))
-            accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
-            print(
-                f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
+            if not skip_training:
+                print('Started training...')
+                # Training - (training the classification layer)
+                new_model.compile(optimizer=optimizer,
+                                  loss=loss, metrics=metrics)
+                new_model.fit(x=generator_train, epochs=epochs, steps_per_epoch=steps_per_epoch,
+                              callbacks=[
+                                  tensorboard_callback, checkpoint_callback], validation_data=datagen_validation, validation_steps=steps_validation,
+                              class_weight=(dict(enumerate(class_weight_train))))
+                accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
+                print(
+                    f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
             # Finetuning - (training the whole model)
             if not skip_finetuning:
-                print('\n\n\nFinetuning just ran\n\n')
+                print('Starting finetuning...')
                 for layers in loaded_model.layers:
                     layers.trainable = True
                 new_model.compile(optimizer=optimizer_finetuning,
@@ -516,20 +530,20 @@ if run:
                 print(
                     f'Finetuning-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
-    # Exporting the trained model
-    new_model.compile(optimizer=optimizer_finetuning,
-                      loss=loss, metrics=metrics)
-    timestamp_path = pathlib.Path(
-        f'{saved_model_path}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_d={dense_amount}_{timestamp}')  # Generate a unique file name
-    print(f'Exporting trained model at {timestamp_path}')
-    os.mkdir(f'{timestamp_path}')
-    # new_model.save(f'{timestamp_path}')  # Save the model
-    new_model.save(timestamp_path)  # Save the model
+        # Exporting the trained model
+        new_model.compile(optimizer=optimizer_finetuning,
+                          loss=loss, metrics=metrics)
+        timestamp_path = pathlib.Path(
+            f'{saved_model_path}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_d={dense_amount}_{timestamp}')  # Generate a unique file name
+        print(f'Exporting trained model at {timestamp_path}')
+        os.mkdir(f'{timestamp_path}')
+        # new_model.save(f'{timestamp_path}')  # Save the model
+        new_model.save(timestamp_path)  # Save the model
 
-    # Exporting the class names into the model's directory
-    with open(timestamp_path.joinpath('classes'), 'a') as file:
-        for i in range(len(class_names)):
-            file.write(f'{class_names[i].split("_")[0]}\n')
+        # Exporting the class names into the model's directory
+        with open(timestamp_path.joinpath('classes'), 'a') as file:
+            for i in range(len(class_names)):
+                file.write(f'{class_names[i].split("_")[0]}\n')
 
     # Printing the summary
     print(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
@@ -541,7 +555,7 @@ if save_as_lite:
     converter = lite.TFLiteConverter.from_saved_model(
         str(pathlib.Path(timestamp_path)))
     tflite_model = converter.convert()
-    tflite_file_name = f'lite/{name}_{timestamp}.tflite'
+    tflite_file_name = f'{timestamp_path}/{name}_{timestamp}.tflite'
     with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
         f.write(tflite_model)
     print(f'Converted model was saved to {tflite_file_name}')
