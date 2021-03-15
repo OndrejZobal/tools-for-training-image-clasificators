@@ -71,6 +71,7 @@ log_dir = 'logs/'  # TensorBoard log directory
 checkpoint_path = 'checkpoints/'  # Default Checkpoint folder
 saved_model_path = 'saved_models/'  # Default export model directory
 name = 'model'  # Default model filename
+model_class_name = 'modelclass' # Name of the parent dir to the model dir
 
 loss = 'categorical_crossentropy'
 metrics = ['categorical_accuracy']
@@ -94,6 +95,7 @@ is_base = True
 save_as_lite = False  # Also export the trained model as lite?
 timestamp = str(datetime.datetime.now()).replace(
     " ", "-").replace(":", ".")  # Creating timestamp for exported  files
+timestamp_path = ''
 
 PreTrainedModel = tf.keras.applications.InceptionV3(
     include_top=False, input_shape=(299, 299, 3))
@@ -376,13 +378,26 @@ if run:
     optimizer_finetuning = Adam(
         lr=learning_rate_finetuning)  # TODO Here you can change the default optimizer for finetuning
 
+
     # Tensorboard setup
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
         log_dir=log_dir.joinpath(f'model_{name}-e={epochs}-d={dense_amount}-\
         {timestamp}'), histogram_freq=1)  # Updates files for tensorboard
-    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=str(datetime.datetime.now()) + '{epoch:02d}.hdf5',
-                                                             save_best_only=True, save_weights_only=True,
-                                                             verbose=1)  # Saving the model after each epoch
+
+    model_class_name += f'_d{dense_amount}-c{dense_count}'
+
+    # Create a category directory for the models
+    if not os.path.exists(saved_model_path.joinpath(model_class_name)):
+        # Create the category directory
+        os.makedirs(saved_model_path.joinpath(model_class_name))
+        # And then a checkpoint category insede
+        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath('Checkpoints'))
+
+    # Save the model after every epoch
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saved_model_path.joinpath(model_class_name)
+                                                            .joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
+                                                            save_best_only=True, save_weights_only=True,
+                                                            verbose=1)
 
     # Setting up the data generator for all three phases
     # Training data gnerator
@@ -533,8 +548,9 @@ if run:
         # Exporting the trained model
         new_model.compile(optimizer=optimizer_finetuning,
                           loss=loss, metrics=metrics)
+        
         timestamp_path = pathlib.Path(
-            f'{saved_model_path}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_d={dense_amount}_{timestamp}')  # Generate a unique file name
+                f'{saved_model_path}/{model_class_name}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_{timestamp}')  # Generate a unique file name
         print(f'Exporting trained model at {timestamp_path}')
         os.mkdir(f'{timestamp_path}')
         # new_model.save(f'{timestamp_path}')  # Save the model
