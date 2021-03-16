@@ -1,16 +1,13 @@
-# Files created by IDEs etc...
-.idea/
-.ipynb_checkpoints/
-.vscode/
-.gitignore
+# Excluding hidden directories.
+.*
+
+# Exclude cache etc....
 __pycache__/
 venv/
 
-# User files created by the program.
+# Exclude user specific directories.
 dataset/
 saved_models/
 checkpoints/
 logs/
-
-# Optional directory for personal testing.
 ignore/
