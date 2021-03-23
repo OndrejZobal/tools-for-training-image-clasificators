@@ -62,9 +62,9 @@ import os
 
 '''  PARAMETERS - Change these values. '''
 # Paths to individual dataset categories
-train_dir = 'Training/'
-validation_dir = 'Validation/'
-finetuning_dir = 'Finetuning/'
+train_dir = 'training/'
+validation_dir = 'validation/'
+finetuning_dir = 'finetuning/'
 ds_dir = 'dataset/'
 
 log_dir = 'logs/'  # TensorBoard log directory
@@ -113,7 +113,6 @@ EXPERIMENTAL = False
 
 '''  PROCESSING ARGUMENTS  '''
 # The map translating the single char arguments into full string arguments.
-
 def log(message, level = 'info'):
     symbol = {
         'info': '*',
@@ -122,6 +121,17 @@ def log(message, level = 'info'):
     }
 
     print(f' [{symbol.get(level)}] {message}')
+
+
+def print_banner():
+    print('''\
+             _             _                     
+    _ __ ___| |_ _ __ __ _(_)_ __    _ __  _   _ 
+    | '__/ _ \ __| '__/ _` | | '_ \  | '_ \| | | |
+    | | |  __/ |_| | | (_| | | | | |_| |_) | |_| |
+    |_|  \___|\__|_|  \__,_|_|_| |_(_) .__/ \__, |
+        by Ondřej Zobal              |_|    |___/ 
+    ''')
 
 
 '''
@@ -159,26 +169,26 @@ def train(model, train, ds, epoch, lr, sample_weight):
     return train_acc
 '''
 
+
 # Prints the help menu
 def arg_help(next_arg):
     global run
     run = False
-    log(
-        '''\nYou can use these flags:\n
-        -h --help\t= Print this message.\n
-        -n --name\t= Set the name of the model. This will appear as the filename of the exported model.\n
-        -l --load [PATH]\t= Takes a relative path to a saved model.\n
-        -b --base [PATH]\t= Takes a relative path to a base model for tranfer-learning.\n
-        -e --epochs [AMOUNT]\t= Amount of training epochs.\n
-        -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.\n
-        -c --count [AMOUNT]\t= The amount of dense layers at the end.\n
-        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint of a current model.\n
-        -v --version\t= Displays the Tensorflow version number.\n
-           --skip-finetuning\t= When present the script will skip finetuning.\n
-           --lr-training [VALUE]\t= Sets a given float as a learning rate for the initial training. This is ussually a very small number.\n
-           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate for the finetuning training. This is ussually a very small number.\n
-        -s --skip\t= Skips the training phase.\n
-        -t --tensorboard\t= Runs tensor board on current logdir.\n''')
+    log('''You can use these flags:
+        -h --help\t= Print this message.
+        -n --name\t= Set the name of the model. This will appear as the filename of the exported model.
+        -l --load [PATH]\t= Takes a relative path to a saved model.
+        -b --base [PATH]\t= Takes a relative path to a base model for tranfer-learning.
+        -e --epochs [AMOUNT]\t= Amount of training epochs.
+        -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.
+        -c --count [AMOUNT]\t= The amount of dense layers at the end.
+        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint of a current model.
+        -v --version\t= Displays the Tensorflow version number.
+           --skip-finetuning\t= When present the script will skip finetuning.
+           --lr-training [VALUE]\t= Sets a given float as a learning rate for the initial training. This is ussually a very small number.
+           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate for the finetuning training. This is ussually a very small number.
+        -s --skip\t= Skips the training phase.
+        -t --tensorboard\t= Runs tensor board on current logdir.''')
     return True
 
 
@@ -291,20 +301,21 @@ def arg_tensorboard(next_arg):
 
 
 char_arg_map = {
-    'h': 'help',
-    'n': 'name',
-    'l': 'load',
-    'b': 'base',
-    'e': 'epochs',
-    'C': 'load-checkpoint',
-    'v': 'version',
-    'd': 'dense',
-    'c': 'count',
-    's': 'skip',
-    't': 'tensorboard'}
+    # Short form | Long form
+    'h':    'help',
+    'n':    'name',
+    'l':    'load',
+    'b':    'base',
+    'e':    'epochs',
+    'C':    'load-checkpoint',
+    'v':    'version',
+    'd':    'dense',
+    'c':    'count',
+    's':    'skip',
+    't':    'tensorboard'}
 
 arg_dict = {
-    # Key   Function    Short form
+    # Key | Function 
     'help': arg_help,
     'name': arg_name,
     'load': arg_load,
@@ -323,9 +334,11 @@ arg_dict = {
 }
 
 
+'''
 # Return a list of filenames attached to given path
 def path_join(dirname, filenames):
     return [os.path.join(dirname, filename) for filename in filenames]
+'''
 
 
 # Converts single char arguments into a full argument and calls the processing function.
@@ -391,11 +404,11 @@ def init_training_variables():
         # Create the category directory
         os.makedirs(saved_model_path.joinpath(model_class_name))
         # And then a checkpoint category insede
-        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath('Checkpoints'))
+        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path))
 
     # Save the model after every epoch
     checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saved_model_path.joinpath(model_class_name)
-                                                            .joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
+                                                            .joinpath(checkpoint_path).joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
                                                             save_best_only=True, save_weights_only=True,
                                                             verbose=1)
 
@@ -452,6 +465,8 @@ def init_generators(preprocessing_func, directory, rotation=0, width_shift=0,
 
 '''  BUILDING THE MODEL  '''
 def build_model():
+    global checkpoint_name
+
     # Putting the model together
     if is_base:
 
@@ -461,41 +476,25 @@ def build_model():
             layers.trainable = False
 
         # Adding other layers
-        '''
-        new_model = Sequential()
-        new_model.add(loaded_model)
-        new_model.add(tf.keras.layers.Flatten())
-        new_model.add(Input(shape=(dense_amount)))
-        '''
 
         # inp = Input(shape=(dense_amount))
         x = loaded_model.output
         x = tf.keras.layers.Flatten()(x)
         for i in range(dense_count):
-            '''
-            new_model.add(Dropout(0.5))
-            new_model.add(Dense(dense_amount, activation='relu'))
-            '''
             x = Dropout(0.5)(x)
             x = Dense(dense_amount, activation='relu')(x)
 
         # Output layer
-        '''
-        new_model.add(Dense(num_classes, activation='softmax'))
-        '''
         out = Dense(num_classes, activation='softmax')(x)
 
         new_model = Model(inputs=loaded_model.input, outputs=out)
 
     else:
         new_model = loaded_model
-    '''
-    # Loading saved weights if any were specified
     if checkpoint_name != None:
-        new_model.load_weights(str(full_path.joinpath(checkpoint_name)))
-    '''
-    if checkpoint_name != None:
-        new_model.load_weights(pathlib.Path(checkpoint_path).joinpath(model_class_name).joinpath(checkpoint_name))
+        if os.path.sep not in checkpoint_name:
+            checkpoint_name = saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path).joinpath(checkpoint_name)
+        new_model.load_weights(checkpoint_name)
     new_model.summary()
 
 
@@ -564,18 +563,11 @@ def export_as_tflite():
             f.write(tflite_model)
         log(f'Converted model was saved to {tflite_file_name}')
 
-'''
-def build_generators():
-    global generator_train, steps_train, cls_weight_train, \
-        generator_validation, steps_validation, cls_weight_validation, \
-        generator_finetuning, steps_finetuning, cls_weight_finetuning
-    
-'''
-
 
 def main():
     process_commands()
     if run:
+        print_banner()
         init_training_variables()
             
         generator_train, steps_train, cls_weight_train = init_generators(PreProcess, train_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], False, True)
