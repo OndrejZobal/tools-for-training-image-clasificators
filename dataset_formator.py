@@ -9,9 +9,9 @@ from shutil import copyfile
 from shutil import copy
 import code
 
-training_name = 'Training'
-validation_name = 'Validation'
-finetuning_name = 'Finetuning'
+training_name = 'training'
+validation_name = 'validation'
+finetuning_name = 'finetuning'
 
 CALCULATE_THRESHOLD_AUTOMATICALLY = False
 class_overfit_amount = 300

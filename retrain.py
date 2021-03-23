@@ -62,9 +62,9 @@ import os
 
 '''  PARAMETERS - Change these values. '''
 # Paths to individual dataset categories
-train_dir = 'Training/'
-validation_dir = 'Validation/'
-finetuning_dir = 'Finetuning/'
+train_dir = 'training/'
+validation_dir = 'validation/'
+finetuning_dir = 'finetuning/'
 ds_dir = 'dataset/'
 
 log_dir = 'logs/'  # TensorBoard log directory
@@ -88,7 +88,6 @@ checkpoint_name = None
 skip_finetuning = False
 skip_training = False
 run = True  # Used for disabling the training process itself. ex. printing help
-train = True  # Controls skipping another phaze
 # A variable for models loaded through the command line arguments.
 loaded_model = None
 is_base = True
@@ -96,6 +95,7 @@ save_as_lite = False  # Also export the trained model as lite?
 timestamp = str(datetime.datetime.now()).replace(
     " ", "-").replace(":", ".")  # Creating timestamp for exported  files
 timestamp_path = ''
+class_names = None
 
 PreTrainedModel = tf.keras.applications.InceptionV3(
     include_top=False, input_shape=(299, 299, 3))
@@ -113,27 +113,35 @@ EXPERIMENTAL = False
 
 '''  PROCESSING ARGUMENTS  '''
 # The map translating the single char arguments into full string arguments.
-char_arg_map = {
-    'h': 'help',
-    'n': 'name',
-    'l': 'load',
-    'b': 'base',
-    'e': 'epochs',
-    'C': 'load-checkpoint',
-    'v': 'version',
-    'd': 'dense',
-    'c': 'count',
-    's': 'skip',
-    't': 'tensorboard'}
+def log(message, level = 'info'):
+    symbol = {
+        'info': '*',
+        'varning': '@',
+        'error': '!',
+    }
+
+    print(f' [{symbol.get(level)}] {message}')
 
 
+def print_banner():
+    print('''\
+             _             _                     
+    _ __ ___| |_ _ __ __ _(_)_ __    _ __  _   _ 
+    | '__/ _ \ __| '__/ _` | | '_ \  | '_ \| | | |
+    | | |  __/ |_| | | (_| | | | | |_| |_) | |_| |
+    |_|  \___|\__|_|  \__,_|_|_| |_(_) .__/ \__, |
+        by Ondřej Zobal              |_|    |___/ 
+    ''')
+
+
+'''
 def train(model, train, ds, epoch, lr, sample_weight):
     train_acc = None
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
     acc_metric = tf.keras.metrics.CategoricalCrossentropy()
     for epoch in range(epochs):
-        print(f'\nStart of Training Epoch {epoch}')
+        log(f'Start of Training Epoch {epoch}')
         num_batches = 0
         for i, (x_batch, y_batch) in enumerate(ds):
             num_batches += 1
@@ -155,32 +163,32 @@ def train(model, train, ds, epoch, lr, sample_weight):
 
         # Keeping up with the accuracy
         train_acc = acc_metric.result()
-        print(f'Accuracy over epoch {train_acc}')
+        log(f'Accuracy over epoch {train_acc}')
         acc_metric.reset_states()
 
     return train_acc
+'''
 
 
 # Prints the help menu
 def arg_help(next_arg):
     global run
     run = False
-    print(
-        '\nYou can use these flags:\n\
-        -h --help\t= Print this message.\n\
-        -n --name\t= Set the name of the model. This will appear as the filename of the exported model.\n\
-        -l --load [PATH]\t= Takes a relative path to a saved model.\n\
-        -b --base [PATH]\t= Takes a relative path to a base model for tranfer-learning.\n\
-        -e --epochs [AMOUNT]\t= Amount of training epochs.\n\
-        -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.\n\
-        -c --count [AMOUNT]\t= The amount of dense layers at the end.\n\
-        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint of a current model.\n\
-        -v --version\t= Displays the Tensorflow version number.\n\
-           --skip-finetuning\t= When present the script will skip finetuning.\n\
-           --lr-training [VALUE]\t= Sets a given float as a learning rate for the initial training. This is ussually a very small number.\n\
-           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate for the finetuning training. This is ussually a very small number.\n\
-        -s --skip\t= Skips the training phase.\n\
-        -t --tensorboard\t= Runs tensor board on current logdir.\n')
+    log('''You can use these flags:
+        -h --help\t= Print this message.
+        -n --name\t= Set the name of the model. This will appear as the filename of the exported model.
+        -l --load [PATH]\t= Takes a relative path to a saved model.
+        -b --base [PATH]\t= Takes a relative path to a base model for tranfer-learning.
+        -e --epochs [AMOUNT]\t= Amount of training epochs.
+        -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.
+        -c --count [AMOUNT]\t= The amount of dense layers at the end.
+        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint of a current model.
+        -v --version\t= Displays the Tensorflow version number.
+           --skip-finetuning\t= When present the script will skip finetuning.
+           --lr-training [VALUE]\t= Sets a given float as a learning rate for the initial training. This is ussually a very small number.
+           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate for the finetuning training. This is ussually a very small number.
+        -s --skip\t= Skips the training phase.
+        -t --tensorboard\t= Runs tensor board on current logdir.''')
     return True
 
 
@@ -197,7 +205,7 @@ def arg_load(next_arg):
     global is_base
     global timestamp_path
     path = pathlib.Path(next_arg)
-    print(
+    log(
         f'\nLoading a full model from {path}.\n')
     loaded_model = tf.keras.models.load_model(path)
     is_base = False
@@ -244,7 +252,7 @@ def arg_lr_finetuning(next_arg):
 def arg_version(next_arg):
     global run
     run = False
-    print(
+    log(
         f'\nThis script was made for Tensorflow 2.2. You are running version {tf.__version__}.\n')
     return False
 
@@ -267,7 +275,7 @@ def arg_dense_count(next_arg):
 def arg_base(next_arg):
     global loaded_model
     path = pathlib.Path(next_arg)
-    print(f'\nLoading a base model from {path}.\n')
+    log(f'\nLoading a base model from {path}.\n')
     loaded_model = tf.keras.models.load_model(path)
     return True
 
@@ -292,80 +300,86 @@ def arg_tensorboard(next_arg):
     exit()
 
 
-# Processes the string argument and calls the appropriate function.
-def process_arg(name, next_arg):
-    if name == 'help':
-        return arg_help(next_arg)
-    elif name == 'name':
-        return arg_name(next_arg)
-    elif name == 'load':
-        return arg_load(next_arg)
-    elif name == 'epochs':
-        return arg_epochs(next_arg)
-    elif name == 'load-checkpoint':
-        return arg_checkpoint(next_arg)
-    elif name == 'skip-finetuning':
-        return arg_finetuning(next_arg)
-    elif name == 'lr-training':
-        return arg_lr_training(next_arg)
-    elif name == 'lr-finetuning':
-        return arg_lr_finetuning(next_arg)
-    elif name == 'version':
-        return arg_version(next_arg)
-    elif name == 'dense':
-        return arg_dense(next_arg)
-    elif name == 'count':
-        return arg_dense_count(next_arg)
-    elif name == 'base':
-        return arg_base(next_arg)
-    elif name == 'lite':
-        return arg_lite(next_arg)
-    elif name == 'skip':
-        return arg_skip(next_arg)
-    elif name == 'tensorboard':
-        return arg_tensorboard(next_arg)
-    else:
-        print(f'Invalid argument: {name}')
+char_arg_map = {
+    # Short form | Long form
+    'h':    'help',
+    'n':    'name',
+    'l':    'load',
+    'b':    'base',
+    'e':    'epochs',
+    'C':    'load-checkpoint',
+    'v':    'version',
+    'd':    'dense',
+    'c':    'count',
+    's':    'skip',
+    't':    'tensorboard'}
+
+arg_dict = {
+    # Key | Function 
+    'help': arg_help,
+    'name': arg_name,
+    'load': arg_load,
+    'epochs': arg_epochs,
+    'load-checkpoint': arg_checkpoint,
+    'skip-finetuning': arg_finetuning,
+    'lr-training': arg_lr_training,
+    'lr-finetuning': arg_lr_finetuning,
+    'version': arg_version,
+    'dense': arg_dense,
+    'count': arg_dense_count,
+    'base': arg_base,
+    'lite': arg_lite,
+    'skip': arg_skip,
+    'tensorboard': arg_tensorboard,
+}
 
 
+'''
 # Return a list of filenames attached to given path
 def path_join(dirname, filenames):
     return [os.path.join(dirname, filename) for filename in filenames]
+'''
 
 
 # Converts single char arguments into a full argument and calls the processing function.
 def process_1char_arg(char, next_arg):
     try:
-        return process_arg(char_arg_map.get(char), next_arg)
+        # return process_arg(char_arg_map.get(char), next_arg)
+        return arg_dict[char_arg_map[char]](next_arg)
     except Exception as e:
-        print(f'\nInvalid single dash argument was given:\n\t{e}')
+        log(f'\nInvalid single dash argument was given:\n\t{e}', 'error')
 
 
 # Process command line arguments args
-if len(sys.argv) > 0:
-    skip = False  # Set to True when flag that requires aditional argument after
-    for arg in range(len(sys.argv)):
-        skip = False
-        if not skip:
-            if (sys.argv[arg][0] == '-'):
-                next_arg = ''
-                if len(sys.argv) + 1 >= arg:
-                    try:
-                        next_arg = sys.argv[arg + 1]
-                    except:
-                        None
-                # Single letter arguments
-                if len(sys.argv[
-                        arg]) == 2:  # Handeling 'one dash per onle letter' syntax. This will permit passing one aditional argument
-                    skip = process_1char_arg(sys.argv[arg][1], next_arg)
-                # Word arguments
-                elif len(sys.argv[arg]) > 3:
-                    if sys.argv[arg][
-                            1] == '-':  # Handeling 'double dash, whole word! syntax. This will permit passing aditional arguments
-                        skip = process_arg(sys.argv[arg][2:], next_arg)
+def process_commands():
+    if len(sys.argv) > 0:
+        skip = False  # Set to True when flag that requires aditional argument after
+        for arg in range(len(sys.argv)):
+            skip = False
+            if not skip:
+                if (sys.argv[arg][0] == '-'):
+                    next_arg = ''
+                    if len(sys.argv) + 1 >= arg:
+                        try:
+                            next_arg = sys.argv[arg + 1]
+                        except:
+                            None
+                    # Single letter arguments
+                    if len(sys.argv[
+                            arg]) == 2:  # Handeling 'one dash per onle letter' syntax. This will permit passing one aditional argument
+                        skip = process_1char_arg(sys.argv[arg][1], next_arg)
+                    # Word arguments
+                    elif len(sys.argv[arg]) > 3:
+                        if sys.argv[arg][
+                                1] == '-':  # Handeling 'double dash, whole word! syntax. This will permit passing aditional arguments
+                            # skip = process_arg(sys.argv[arg][2:], next_arg)
+                            skip = arg_dict[sys.argv[arg][2:]](next_arg)
+
 
 '''  SETTING UP CALLBACKS, GENERATORS, ETC...  '''
-if run:
+def init_training_variables():
+    global loaded_model, input_shape, optimizer, optimizer_finetuning, tensorboard_callback, model_class_name, checkpoint_callback
+
     # Load the default starting model
     if loaded_model == None:
         loaded_model = PreTrainedModel  # TODO Here you can change the default model
@@ -377,7 +391,6 @@ if run:
     optimizer = Adam(lr=learning_rate_train)
     optimizer_finetuning = Adam(
         lr=learning_rate_finetuning)  # TODO Here you can change the default optimizer for finetuning
-
 
     # Tensorboard setup
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
@@ -391,187 +404,186 @@ if run:
         # Create the category directory
         os.makedirs(saved_model_path.joinpath(model_class_name))
         # And then a checkpoint category insede
-        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath('Checkpoints'))
+        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path))
 
     # Save the model after every epoch
     checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saved_model_path.joinpath(model_class_name)
-                                                            .joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
+                                                            .joinpath(checkpoint_path).joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
                                                             save_best_only=True, save_weights_only=True,
                                                             verbose=1)
 
+   
+def load_class_names(generator):
+    global class_names, num_classes
+
+    names = list(generator.class_indices.keys())
+    num_classes = len(names)
+    if class_names == None:
+        class_names = names
+        return names
+
+    elif len(class_names) != len(names):
+        log('MISSMATCH BETWEEN THE NUMBER OF CLASSES IN A DATASET', 'error')
+        log(f'Previously loaded classes: {class_names}', 'error')
+        log(f'Currently loaded classes: {names}', 'error')
+        # TODO Halt execution
+
+    log(f'The following classes were loaded: {names}')
+    return names
+
+
+def init_generators(preprocessing_func, directory, rotation=0, width_shift=0, 
+                    height_shift=0, shear=0, zoom=0, h_flip=False,
+                    v_flip=False, suffle=False):
     # Setting up the data generator for all three phases
     # Training data gnerator
     datagen_train = ImageDataGenerator(preprocessing_function=PreProcess,
-                                       rotation_range=20,
-                                       width_shift_range=0.1,
-                                       height_shift_range=0.1,
-                                       shear_range=0.1,
-                                       zoom_range=[0.9, 1.1],
-                                       horizontal_flip=False,
-                                       vertical_flip=True,
-                                       fill_mode='nearest')
+                                    rotation_range=rotation,
+                                    width_shift_range=width_shift,
+                                    height_shift_range=height_shift,
+                                    shear_range=shear,
+                                    zoom_range=zoom,
+                                    horizontal_flip=h_flip,
+                                    vertical_flip=v_flip,
+                                    fill_mode='nearest')
 
-    generator_train = datagen_train.flow_from_directory(directory=train_dir,
+    generator = datagen_train.flow_from_directory(directory=directory,
                                                         target_size=input_shape,
                                                         batch_size=batch_size,
-                                                        shuffle=True)
+                                                        shuffle=suffle)
 
-    # Test data generator
-    datagen_validation = ImageDataGenerator(preprocessing_function=PreProcess)
-    datagen_validation = datagen_validation.flow_from_directory(directory=validation_dir,
-                                                                target_size=input_shape,
-                                                                batch_size=batch_size,
-                                                                shuffle=False)
-
-    if not skip_finetuning:
-        # Finetuning data generator
-        datagen_funetuning = ImageDataGenerator(preprocessing_function=PreProcess,
-                                                rotation_range=20,
-                                                width_shift_range=0.1,
-                                                height_shift_range=0.1,
-                                                shear_range=0.1,
-                                                zoom_range=[0.9, 1.1],
-                                                horizontal_flip=True,
-                                                vertical_flip=True,
-                                                fill_mode='nearest')
-
-        generator_finetuning = datagen_funetuning.flow_from_directory(directory=finetuning_dir,
-                                                                      target_size=input_shape,
-                                                                      batch_size=batch_size,
-                                                                      shuffle=True)
-
-    # TODO debug
-    print(generator_train.class_indices)
-
-    # Obtaining the class ID numbers
-    # Getting a list of all the classes
-    class_names = list(generator_train.class_indices.keys())
-    num_classes = generator_train.num_classes  # Getting the total number of classes
-
-    # Computing class weights
-    cls_train = generator_train.classes
-    cls_test = datagen_validation.classes
+    steps = generator.n / batch_size
+    
+    cls_train = generator.classes
     class_weight_train = compute_class_weight(
         class_weight='balanced', classes=np.unique(cls_train), y=cls_train)
-    class_weight_test = compute_class_weight(
-        class_weight='balanced', classes=np.unique(cls_test), y=cls_test)
 
-    # Generators do loop forever, so we will need to know when to reset them.
-    steps_validation = datagen_validation.n / batch_size
-    steps_per_epoch = generator_train.n / batch_size
-    if not skip_finetuning:
-        steps_finetuning = generator_finetuning.n / batch_size
+    load_class_names(generator)
 
-    '''  BUILDING THE MODEL  '''
+    return generator, steps, class_weight_train
 
-    if (train):
 
-        # Putting the model together
-        if is_base:
+'''  BUILDING THE MODEL  '''
+def build_model():
+    global checkpoint_name
 
-            # Freezing the model
-            loaded_model.trainable = False
-            for layers in loaded_model.layers:
-                layers.trainable = False
+    # Putting the model together
+    if is_base:
 
-            # Adding other layers
-            '''
-            new_model = Sequential()
-            new_model.add(loaded_model)
-            new_model.add(tf.keras.layers.Flatten())
-            new_model.add(Input(shape=(dense_amount)))
-            '''
+        # Freezing the model
+        loaded_model.trainable = False
+        for layers in loaded_model.layers:
+            layers.trainable = False
 
-            # inp = Input(shape=(dense_amount))
-            x = loaded_model.output
-            x = tf.keras.layers.Flatten()(x)
-            for i in range(dense_count):
-                '''
-                new_model.add(Dropout(0.5))
-                new_model.add(Dense(dense_amount, activation='relu'))
-                '''
-                x = Dropout(0.5)(x)
-                x = Dense(dense_amount, activation='relu')(x)
+        # Adding other layers
 
-            # Output layer
-            '''
-            new_model.add(Dense(num_classes, activation='softmax'))
-            '''
-            out = Dense(num_classes, activation='softmax')(x)
+        # inp = Input(shape=(dense_amount))
+        x = loaded_model.output
+        x = tf.keras.layers.Flatten()(x)
+        for i in range(dense_count):
+            x = Dropout(0.5)(x)
+            x = Dense(dense_amount, activation='relu')(x)
 
-            new_model = Model(inputs=loaded_model.input, outputs=out)
+        # Output layer
+        out = Dense(num_classes, activation='softmax')(x)
 
-        else:
-            new_model = loaded_model
-        '''
-        # Loading saved weights if any were specified
-        if checkpoint_name != None:
-            new_model.load_weights(str(full_path.joinpath(checkpoint_name)))
-        '''
-        new_model.summary()
+        new_model = Model(inputs=loaded_model.input, outputs=out)
 
-        accuracy = '0'
+    else:
+        new_model = loaded_model
+    if checkpoint_name != None:
+        if os.path.sep not in checkpoint_name:
+            checkpoint_name = saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path).joinpath(checkpoint_name)
+        new_model.load_weights(checkpoint_name)
+    new_model.summary()
 
-        if EXPERIMENTAL:
-            print(f'Class weight: {class_weight_test}')
-            accuracy = train(new_model, generator_train,
-                             datagen_validation, epochs, optimizer)
 
-        else:
-            if not skip_training:
-                print('Started training...')
-                # Training - (training the classification layer)
-                new_model.compile(optimizer=optimizer,
-                                  loss=loss, metrics=metrics)
-                new_model.fit(x=generator_train, epochs=epochs, steps_per_epoch=steps_per_epoch,
-                              callbacks=[
-                                  tensorboard_callback, checkpoint_callback], validation_data=datagen_validation, validation_steps=steps_validation,
-                              class_weight=(dict(enumerate(class_weight_train))))
-                accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
-                print(
-                    f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
+    return new_model
 
-            # Finetuning - (training the whole model)
-            if not skip_finetuning:
-                print('Starting finetuning...')
-                for layers in loaded_model.layers:
-                    layers.trainable = True
-                new_model.compile(optimizer=optimizer_finetuning,
-                                  loss=loss, metrics=metrics)
-                new_model.fit(x=generator_finetuning, epochs=epochs, steps_per_epoch=steps_finetuning,
-                              validation_data=datagen_validation,
-                              validation_steps=steps_validation, class_weight=dict(enumerate(class_weight_test)))
-                accuracy = f'{new_model.evaluate(datagen_validation, steps=steps_validation)[1]}'
-                print(
-                    f'Finetuning-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
 
-        # Exporting the trained model
-        new_model.compile(optimizer=optimizer_finetuning,
-                          loss=loss, metrics=metrics)
-        
-        timestamp_path = pathlib.Path(
-                f'{saved_model_path}/{model_class_name}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_{timestamp}')  # Generate a unique file name
-        print(f'Exporting trained model at {timestamp_path}')
-        os.mkdir(f'{timestamp_path}')
-        # new_model.save(f'{timestamp_path}')  # Save the model
-        new_model.save(timestamp_path)  # Save the model
+def train_with_tf():
+    # TODO develop
+    pass
 
-        # Exporting the class names into the model's directory
-        with open(timestamp_path.joinpath('classes'), 'a') as file:
-            for i in range(len(class_names)):
-                file.write(f'{class_names[i].split("_")[0]}\n')
 
-    # Printing the summary
-    print(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
-    | pictures:\t{steps_per_epoch * batch_size} | accuracy:\t{str(float(accuracy) * 100)[:6]}%')
+def train_with_keras(model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs):
+    accuracy = '0'
+    log('Started training...')
 
-# Saving converting the model to TFLite (optional)
-if save_as_lite:
-    print('Saving model as TensorFlow Lite')
-    converter = lite.TFLiteConverter.from_saved_model(
-        str(pathlib.Path(timestamp_path)))
-    tflite_model = converter.convert()
-    tflite_file_name = f'{timestamp_path}/{name}_{timestamp}.tflite'
-    with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
-        f.write(tflite_model)
-    print(f'Converted model was saved to {tflite_file_name}')
+    model.compile(optimizer=optimizer,
+                    loss=loss, metrics=metrics)
+    history = model.fit(x=generator, epochs=epochs, steps_per_epoch=generator_steps,
+                callbacks=[
+                    tensorboard_callback, checkpoint_callback], validation_data=generator_validation, validation_steps=generator_validation_steps,
+                class_weight=(dict(enumerate(class_weight))))
+    accuracy = f'{model.evaluate(generator_validation, steps=generator_validation_steps)[1]}'
+
+    log(f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
+    return history, accuracy
+
+
+def train(model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs, type_of_training='keras'):
+    switcher = {
+        'keras': train_with_keras,
+        'tf': train_with_tf
+    }
+
+    return switcher[type_of_training](model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs)
+    
+
+def export_model(model, accuracy):
+    global timestamp_path
+
+    # Exporting the trained model
+    model.compile(optimizer=optimizer_finetuning,
+                        loss=loss, metrics=metrics)
+    
+    timestamp_path = pathlib.Path(
+            f'{saved_model_path}/{model_class_name}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_{timestamp}')  # Generate a unique file name
+    log(f'Exporting trained model at {timestamp_path}')
+    os.mkdir(f'{timestamp_path}')
+    # new_model.save(f'{timestamp_path}')  # Save the model
+    model.save(timestamp_path)  # Save the model
+
+    # Exporting the class names into the model's directory
+    with open(timestamp_path.joinpath('classes'), 'a') as file:
+        for i in range(len(class_names)):
+            file.write(f'{class_names[i].split("_")[0]}\n')
+
+
+def export_as_tflite():
+    # Saving converting the model to TFLite (optional)
+    if save_as_lite:
+        log('Saving model as TensorFlow Lite')
+        converter = lite.TFLiteConverter.from_saved_model(
+            str(pathlib.Path(timestamp_path)))
+        tflite_model = converter.convert()
+        tflite_file_name = f'{timestamp_path}/{name}_{timestamp}.tflite'
+        with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
+            f.write(tflite_model)
+        log(f'Converted model was saved to {tflite_file_name}')
+
+
+def main():
+    process_commands()
+    if run:
+        print_banner()
+        init_training_variables()
+            
+        generator_train, steps_train, cls_weight_train = init_generators(PreProcess, train_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], False, True)
+        generator_validation, steps_validation, cls_weight_validation = init_generators(PreProcess, validation_dir)
+        if not skip_finetuning:
+            generator_finetuning, steps_finetuning, cls_weight_finetuning = init_generators(PreProcess, finetuning_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], False, True) 
+
+        model = build_model()
+
+        training_history, accuracy = train(model, generator_train, steps_train, generator_validation, steps_validation, cls_weight_train, epochs)
+        training_history, accuracy = train(model, generator_finetuning, steps_finetuning, generator_validation, steps_validation, cls_weight_finetuning, epochs)
+
+        # Printing the summary
+        log(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
+        | pictures:\t{steps_train * batch_size} | accuracy:\t{str(float(accuracy) * 100)[:6]}%')
+
+
+if __name__ == '__main__':
+    main()
