@@ -120,13 +120,14 @@ def log(message, level = 'info'):
         'error': '!',
     }
 
-    print(f' [{symbol.get(level)}] {message}')
+    nl = '\n'
+    print(f'{nl if level == "error" else ""} [{symbol.get(level)}] {message}')
 
 
 def print_banner():
     print('''\
-             _             _                     
-    _ __ ___| |_ _ __ __ _(_)_ __    _ __  _   _ 
+              _             _                     
+     _ __ ___| |_ _ __ __ _(_)_ __    _ __  _   _ 
     | '__/ _ \ __| '__/ _` | | '_ \  | '_ \| | | |
     | | |  __/ |_| | | (_| | | | | |_| |_) | |_| |
     |_|  \___|\__|_|  \__,_|_|_| |_(_) .__/ \__, |
@@ -428,7 +429,7 @@ def load_class_names(generator):
         log(f'Currently loaded classes: {names}', 'error')
         # TODO Halt execution
 
-    log(f'The following classes were loaded: {names}')
+    log(f'The following classes were loaded:\n{names}')
     return names
 
 
@@ -495,7 +496,7 @@ def build_model():
         if os.path.sep not in checkpoint_name:
             checkpoint_name = saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path).joinpath(checkpoint_name)
         new_model.load_weights(checkpoint_name)
-    new_model.summary()
+    # new_model.summary()
 
 
     return new_model
@@ -533,6 +534,8 @@ def train(model, generator, generator_steps, generator_validation, generator_val
 
 def export_model(model, accuracy):
     global timestamp_path
+
+    log('Exporting the model...')
 
     # Exporting the trained model
     model.compile(optimizer=optimizer_finetuning,
@@ -577,12 +580,24 @@ def main():
 
         model = build_model()
 
-        training_history, accuracy = train(model, generator_train, steps_train, generator_validation, steps_validation, cls_weight_train, epochs)
-        training_history, accuracy = train(model, generator_finetuning, steps_finetuning, generator_validation, steps_validation, cls_weight_finetuning, epochs)
+        training_history = finetuning_history = None
+        accuracy = '0'
+        try:
+            if not skip_training:
+                training_history, accuracy = train(model, generator_train, steps_train, generator_validation, steps_validation, cls_weight_train, epochs)
+            if not skip_finetuning:
+                training_history, accuracy = train(model, generator_finetuning, steps_finetuning, generator_validation, steps_validation, cls_weight_finetuning, epochs)
+        except KeyboardInterrupt as e:
+            log('Interrupting the program...', 'error')
+        except:
+            log('An unhandled exception caused a fatal error.', 'error')
+            log(f'See the traceback:\n{e.print_stack()}', 'error')
+            log(f'Attempting to preserve the model.', 'error')
 
+        export_model(model, accuracy)
         # Printing the summary
-        log(f'\n\tTRAINING FINISHED FOR {name.upper()}\nclasses({num_classes}): {class_names}\nepochs:\t{epochs} \
-        | pictures:\t{steps_train * batch_size} | accuracy:\t{str(float(accuracy) * 100)[:6]}%')
+        log(f'TRAINING FINISHED FOR{name.upper()}') 
+        log(f'classes: {num_classes}, epochs:{epochs}\ , pictures:\t{steps_train * batch_size}, accuracy:\t{str(float(accuracy) * 100)[:6]}%')
 
 
 if __name__ == '__main__':
