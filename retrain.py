@@ -36,7 +36,7 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # Loading the efficient pretrained model used for transfer learning.
 from tensorflow.keras.applications.inception_v3 import \
-    preprocess_input as PreProcess  # TODO something about choosing other models.
+    preprocess_input as PreProcess
 # Layers that will be used
 from tensorflow.keras.layers import Dense, Flatten, Dropout, Input
 # Object for building the model
@@ -59,43 +59,63 @@ import pathlib
 import datetime
 # A library for interacting with the operating system.
 import os
+# For debugging
+import traceback
 
-'''  PARAMETERS - Change these values. '''
-# Paths to individual dataset categories
-train_dir = 'training/'
-validation_dir = 'validation/'
-finetuning_dir = 'finetuning/'
+# PARAMETERS - Change these variables to tweek the script.
+# ---
+# Path to the dir containing the categories.
 ds_dir = 'dataset/'
+# Paths to individual dataset categories (inside of 'ds_dir').
+train_dir = 'training/'
+finetuning_dir = 'finetuning/'
+validation_dir = 'validation/'
 
-log_dir = 'logs/'  # TensorBoard log directory
-checkpoint_path = 'checkpoints/'  # Default Checkpoint folder
-saved_model_path = 'saved_models/'  # Default export model directory
-name = 'model'  # Default model filename
-model_class_name = 'modelclass' # Name of the parent dir to the model dir
+# TensorBoard log directory
+log_dir = 'logs/'
+# Default Checkpoint folder
+checkpoint_path = 'checkpoints/'
+# Default export model directory
+saved_model_path = 'saved_models/'
+# Default model filename
+name = 'model'
+# Name of the parent dir to the model dir
+model_class_name = 'modelclass'
 
-loss = 'categorical_crossentropy'
-metrics = ['categorical_accuracy']
-batch_size = 8  # Size of a batch
-epochs = 20  # The default number of training cycles
-dense_amount = 64  # The size of the classification dense layer
+# Size of a batch
+batch_size = 8
+# The default number of training cycles
+epochs = 20
+# The size of the classification dense layer
+dense_amount = 64
+# The count of classification dense layers.
 dense_count = 1
+# Multipliers of learning.
 learning_rate_train = 1e-5
 learning_rate_finetuning = 1e-7
-
-# These are changed by the script itself. Please don't change the values yourself
+# Prints the logo after the program loads.
 print_init_banner = True
+
+# These are changed by the script itself. 
+# Please don't change the values yourself
 checkpoint_name = None
 skip_finetuning = False
 skip_training = False
-run = True  # Used for disabling the training process itself. ex. printing help
+# Used for disabling the training process itself. ex. printing help
+run = True
 # A variable for models loaded through the command line arguments.
 loaded_model = None
 is_base = True
-save_as_lite = False  # Also export the trained model as lite?
-timestamp = str(datetime.datetime.now()).replace(
-    " ", "-").replace(":", ".")  # Creating timestamp for exported  files
+# Also export the trained model as lite?
+save_as_lite = False
+# Creating timestamp for exported  files
+timestamp = str(datetime.datetime.now()).replace( ' ', '-').replace(':', '.')
 timestamp_path = ''
 class_names = None
+# Loss functions used during training. No point in changing this.
+loss = 'categorical_crossentropy'
+# List of metrics the model will be tracking.
+metrics = ['categorical_accuracy']
 
 PreTrainedModel = tf.keras.applications.InceptionV3(
     include_top=False, input_shape=(299, 299, 3))
@@ -111,17 +131,18 @@ finetuning_dir = ds_dir.joinpath(finetuning_dir)
 
 EXPERIMENTAL = False
 
-'''  PROCESSING ARGUMENTS  '''
 # The map translating the single char arguments into full string arguments.
-def log(message, level = 'info'):
+def log(message, level = 'info', start=' ', end='\n', hide_box=False):
     symbol = {
         'info': '*',
         'varning': '@',
         'error': '!',
     }
 
+    box = f'[{symbol.get(level)}] ' if not hide_box else ''
     nl = '\n'
-    print(f'{nl if level == "error" else ""} [{symbol.get(level)}] {message}')
+    print(f'{nl if level == "error" else ""}{start}{box}{message}',
+        end=end)
 
 
 def print_banner():
@@ -171,23 +192,28 @@ def train(model, train, ds, epoch, lr, sample_weight):
 '''
 
 
-# Prints the help menu
+# Prints the help menu.
 def arg_help(next_arg):
     global run
     run = False
     log('''You can use these flags:
         -h --help\t= Print this message.
-        -n --name\t= Set the name of the model. This will appear as the filename of the exported model.
+        -n --name [NAME]\t= Set the name of the model. This will appear as the \
+filename of the exported model.
         -l --load [PATH]\t= Takes a relative path to a saved model.
-        -b --base [PATH]\t= Takes a relative path to a base model for tranfer-learning.
+        -b --base [PATH]\t= Takes a relative path to a base model for\
+tranfer-learning.
         -e --epochs [AMOUNT]\t= Amount of training epochs.
         -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.
         -c --count [AMOUNT]\t= The amount of dense layers at the end.
-        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint of a current model.
+        -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint \
+of a current model.
         -v --version\t= Displays the Tensorflow version number.
            --skip-finetuning\t= When present the script will skip finetuning.
-           --lr-training [VALUE]\t= Sets a given float as a learning rate for the initial training. This is ussually a very small number.
-           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate for the finetuning training. This is ussually a very small number.
+           --lr-training [VALUE]\t= Sets a given float as a learning rate for \
+the initial training. This is ussually a very small number.
+           --lr-finetuning [VALUE]\t= Sets a given float as a learning rate \
+for the finetuning training. This is ussually a very small number.
         -s --skip\t= Skips the training phase.
         -t --tensorboard\t= Runs tensor board on current logdir.''')
     return True
@@ -253,8 +279,7 @@ def arg_lr_finetuning(next_arg):
 def arg_version(next_arg):
     global run
     run = False
-    log(
-        f'\nThis script was made for Tensorflow 2.2. You are running version {tf.__version__}.\n')
+    log(f'You are running TensorFlow version {tf.__version__}.\n')
     return False
 
 
@@ -300,7 +325,7 @@ def arg_tensorboard(next_arg):
     os.system(f'tensorboard --logdir {log_dir}')
     exit()
 
-
+# Dict mapping the short forms of flags to the logn ones.
 char_arg_map = {
     # Short form | Long form
     'h':    'help',
@@ -315,6 +340,7 @@ char_arg_map = {
     's':    'skip',
     't':    'tensorboard'}
 
+# Maps the long name of a flag to a argument function
 arg_dict = {
     # Key | Function 
     'help': arg_help,
@@ -335,14 +361,8 @@ arg_dict = {
 }
 
 
-'''
-# Return a list of filenames attached to given path
-def path_join(dirname, filenames):
-    return [os.path.join(dirname, filename) for filename in filenames]
-'''
-
-
-# Converts single char arguments into a full argument and calls the processing function.
+# Converts single char arguments into a full argument and calls 
+# the processing function.
 def process_1char_arg(char, next_arg):
     try:
         # return process_arg(char_arg_map.get(char), next_arg)
@@ -353,50 +373,59 @@ def process_1char_arg(char, next_arg):
 
 # Process command line arguments args
 def process_commands():
-    if len(sys.argv) > 0:
-        skip = False  # Set to True when flag that requires aditional argument after
-        for arg in range(len(sys.argv)):
-            skip = False
-            if not skip:
-                if (sys.argv[arg][0] == '-'):
-                    next_arg = ''
-                    if len(sys.argv) + 1 >= arg:
-                        try:
-                            next_arg = sys.argv[arg + 1]
-                        except:
-                            None
-                    # Single letter arguments
-                    if len(sys.argv[
-                            arg]) == 2:  # Handeling 'one dash per onle letter' syntax. This will permit passing one aditional argument
-                        skip = process_1char_arg(sys.argv[arg][1], next_arg)
-                    # Word arguments
-                    elif len(sys.argv[arg]) > 3:
-                        if sys.argv[arg][
-                                1] == '-':  # Handeling 'double dash, whole word! syntax. This will permit passing aditional arguments
-                            # skip = process_arg(sys.argv[arg][2:], next_arg)
-                            skip = arg_dict[sys.argv[arg][2:]](next_arg)
+    if len(sys.argv) <= 0:
+        return
+    # Set to True when flag that requires aditional argument after
+    skip = False
+    for arg in range(len(sys.argv)):
+        skip = False
+        if skip:
+            continue
+        if (sys.argv[arg][0] == '-'):
+            next_arg = ''
+            if len(sys.argv) + 1 >= arg:
+                try:
+                    next_arg = sys.argv[arg + 1]
+                except:
+                    pass
+            # Handeling 'one dash per onle letter' syntax. 
+            # This will permit passing one aditional parameter
+            if len(sys.argv[arg]) == 2:
+                skip = process_1char_arg(sys.argv[arg][1], next_arg)
+            # Long arguments
+            elif len(sys.argv[arg]) > 3:
+                # Handeling 'double dash, whole word! syntax. 
+                # This will permit passing aditional parameters
+                if sys.argv[arg][1] == '-':
+                    skip = arg_dict[sys.argv[arg][2:]](next_arg)
+        else:
+            # Consider the possibility of a default argument
+            pass 
 
 
-'''  SETTING UP CALLBACKS, GENERATORS, ETC...  '''
+# SETTING UP CALLBACKS, GENERATORS, ETC...
 def init_training_variables():
-    global loaded_model, input_shape, optimizer, optimizer_finetuning, tensorboard_callback, model_class_name, checkpoint_callback
+    global loaded_model, input_shape, optimizer, optimizer_finetuning
+    global tensorboard_callback, model_class_name, checkpoint_callback
 
     # Load the default starting model
     if loaded_model == None:
-        loaded_model = PreTrainedModel  # TODO Here you can change the default model
+        loaded_model = PreTrainedModel
 
     input_shape = loaded_model.input.shape[1:3]
 
     # Here you can change the optimizers
     # TODO Here you can change the default optimizer
     optimizer = Adam(lr=learning_rate_train)
-    optimizer_finetuning = Adam(
-        lr=learning_rate_finetuning)  # TODO Here you can change the default optimizer for finetuning
+    # TODO Here you can change the default optimizer for finetuning
+    optimizer_finetuning = Adam( lr=learning_rate_finetuning)
 
     # Tensorboard setup
+
+    # Updates files for tensorboard
     tensorboard_callback = tf.keras.callbacks.TensorBoard(
         log_dir=log_dir.joinpath(f'model_{name}-e={epochs}-d={dense_amount}-\
-        {timestamp}'), histogram_freq=1)  # Updates files for tensorboard
+        {timestamp}'), histogram_freq=1)
 
     model_class_name += f'_d{dense_amount}-c{dense_count}'
 
@@ -405,80 +434,105 @@ def init_training_variables():
         # Create the category directory
         os.makedirs(saved_model_path.joinpath(model_class_name))
         # And then a checkpoint category insede
-        os.makedirs(saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path))
+        os.makedirs(saved_model_path.joinpath(model_class_name)
+            .joinpath(checkpoint_path))
 
     # Save the model after every epoch
-    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(filepath=saved_model_path.joinpath(model_class_name)
-                                                            .joinpath(checkpoint_path).joinpath(f'{name}_{timestamp}_{epochs:02d}.hdf5'),
-                                                            save_best_only=True, save_weights_only=True,
-                                                            verbose=1)
+    checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=saved_model_path.joinpath(model_class_name)
+            .joinpath(checkpoint_path).joinpath(
+                f'{name}_{timestamp}_{epochs:02d}.hdf5'),
+        save_best_only=True, save_weights_only=True,
+        verbose=1)
 
    
+# Sets class_names and num_classes and makes sure, that the amount of classes
+# stays consistent.
 def load_class_names(generator):
     global class_names, num_classes
 
+    # Sets the class_names and num_classes
     names = list(generator.class_indices.keys())
     num_classes = len(names)
     if class_names == None:
         class_names = names
         return names
 
+    # If an inconsistent amount of classes between dataset types appears
+    # it gets reported to the user and execution is halted.
     elif len(class_names) != len(names):
         log('MISSMATCH BETWEEN THE NUMBER OF CLASSES IN A DATASET', 'error')
         log(f'Previously loaded classes: {class_names}', 'error')
         log(f'Currently loaded classes: {names}', 'error')
         # TODO Halt execution
-
-    log(f'The following classes were loaded:\n{names}')
+    
+    # TODO print it in a nicer way. :)
+    log(f'The following classes were loaded:')
+    for i in range(int(len(names)/3)+1):
+        try:
+            log(f'{names[i*3]}', start='\t', end='')
+            log(f',\t{names[i*3+1]}', end='', start='', hide_box=True)
+            log(f',\t{names[i*3+2]}', start='', hide_box=True)
+        except:
+            break
+    print()
     return names
 
 
+# Initilizes the generators with some values beeing passed as arguments and 
+# some values that it wouldn't make sense ever changeing beeing hadrcoded.
 def init_generators(preprocessing_func, directory, rotation=0, width_shift=0, 
                     height_shift=0, shear=0, zoom=0, h_flip=False,
                     v_flip=False, suffle=False):
-    # Setting up the data generator for all three phases
-    # Training data gnerator
-    datagen_train = ImageDataGenerator(preprocessing_function=PreProcess,
-                                    rotation_range=rotation,
-                                    width_shift_range=width_shift,
-                                    height_shift_range=height_shift,
-                                    shear_range=shear,
-                                    zoom_range=zoom,
-                                    horizontal_flip=h_flip,
-                                    vertical_flip=v_flip,
-                                    fill_mode='nearest')
-
-    generator = datagen_train.flow_from_directory(directory=directory,
-                                                        target_size=input_shape,
-                                                        batch_size=batch_size,
-                                                        shuffle=suffle)
-
-    steps = generator.n / batch_size
     
+    # Setting up an Image Data Generator
+    datagen = ImageDataGenerator(preprocessing_function=PreProcess,
+        rotation_range=rotation,
+        width_shift_range=width_shift,
+        height_shift_range=height_shift,
+        shear_range=shear,
+        zoom_range=zoom,
+        horizontal_flip=h_flip,
+        vertical_flip=v_flip,
+        fill_mode='nearest')
+
+    log('', end='')
+    # Creating the actual generator form the datagen
+    generator = datagen.flow_from_directory(directory=directory,
+        target_size=input_shape,
+        batch_size=batch_size,
+        shuffle=suffle)
+
+    # Calculating the steps the generator will take to loop through.
+    # The training function needs to know when it has loop through the whole
+    # generator, because thay just loop infinitely.
+    steps = generator.n / batch_size
+
+    # Calculating the imbalance in class representation of the dataset 
+    # so it can be accounted for in the training.
     cls_train = generator.classes
     class_weight_train = compute_class_weight(
         class_weight='balanced', classes=np.unique(cls_train), y=cls_train)
 
+    # Loads up the class names to the global variables
     load_class_names(generator)
 
     return generator, steps, class_weight_train
 
 
-'''  BUILDING THE MODEL  '''
+# Functions that puts together the Keras model.
+# It uses global values from thes script
 def build_model():
     global checkpoint_name
 
     # Putting the model together
     if is_base:
-
-        # Freezing the model
+        # Freezing the base model for normal training.
         loaded_model.trainable = False
         for layers in loaded_model.layers:
             layers.trainable = False
 
-        # Adding other layers
-
-        # inp = Input(shape=(dense_amount))
+        # Adding recognition layers.
         x = loaded_model.output
         x = tf.keras.layers.Flatten()(x)
         for i in range(dense_count):
@@ -488,50 +542,67 @@ def build_model():
         # Output layer
         out = Dense(num_classes, activation='softmax')(x)
 
-        new_model = Model(inputs=loaded_model.input, outputs=out)
+        model = Model(inputs=loaded_model.input, outputs=out)
 
     else:
-        new_model = loaded_model
+        model = loaded_model
+    
+    # Loading the checkpoint (if one is set).
     if checkpoint_name != None:
         if os.path.sep not in checkpoint_name:
-            checkpoint_name = saved_model_path.joinpath(model_class_name).joinpath(checkpoint_path).joinpath(checkpoint_name)
-        new_model.load_weights(checkpoint_name)
-    # new_model.summary()
+            checkpoint_name = saved_model_path.joinpath(model_class_name, 
+                checkpoint_path, checkpoint_name)
+        log(f'Loading a checkpoint: {checkpoint_name}.')
+        model.load_weights(checkpoint_name)
+
+    return model
 
 
-    return new_model
-
-
+# Use a custom TensorFlow function for training.
 def train_with_tf():
     # TODO develop
     pass
 
 
-def train_with_keras(model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs):
+# Use the buil-in Keras .fit function for training.
+def train_with_keras(model, generator, generator_steps, generator_validation, 
+    generator_validation_steps, class_weight, epochs):
     accuracy = '0'
-    log('Started training...')
 
-    model.compile(optimizer=optimizer,
-                    loss=loss, metrics=metrics)
-    history = model.fit(x=generator, epochs=epochs, steps_per_epoch=generator_steps,
-                callbacks=[
-                    tensorboard_callback, checkpoint_callback], validation_data=generator_validation, validation_steps=generator_validation_steps,
-                class_weight=(dict(enumerate(class_weight))))
-    accuracy = f'{model.evaluate(generator_validation, steps=generator_validation_steps)[1]}'
+    class_weight = dict(enumerate(class_weight))
+
+    # Compiling the model and doing the training.
+    model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+    history = model.fit(x=generator, 
+        epochs=epochs, 
+        steps_per_epoch=generator_steps,
+        callbacks=[tensorboard_callback, checkpoint_callback],
+        validation_data=generator_validation, 
+        validation_steps=generator_validation_steps,
+        class_weight=class_weight
+    )
+    accuracy = str(model.evaluate(generator_validation, 
+        steps=generator_validation_steps)[1])
 
     log(f'Test-set classification accuracy: {str(float(accuracy[:6]) * 100)}%')
     return history, accuracy
 
 
-def train(model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs, type_of_training='keras'):
+# This function forwards the training based on the training fuction chosen in
+# 'type_of_training' by the user. It can be 'tf' or 'keras'.
+def train(model, generator, generator_steps, generator_validation, 
+    generator_validation_steps, class_weight, epochs, 
+    type_of_training='keras'):
     switcher = {
         'keras': train_with_keras,
         'tf': train_with_tf
     }
 
-    return switcher[type_of_training](model, generator, generator_steps, generator_validation, generator_validation_steps, class_weight, epochs)
+    return switcher[type_of_training](model, generator, generator_steps, \
+        generator_validation, generator_validation_steps, class_weight, epochs)
     
 
+# Exports the keras model into a new directory.
 def export_model(model, accuracy):
     global timestamp_path
 
@@ -539,13 +610,14 @@ def export_model(model, accuracy):
 
     # Exporting the trained model
     model.compile(optimizer=optimizer_finetuning,
-                        loss=loss, metrics=metrics)
+                    loss=loss, metrics=metrics)
     
-    timestamp_path = pathlib.Path(
-            f'{saved_model_path}/{model_class_name}/{name}_a={float("%.2f" % float(accuracy)) * 100}%_e={epochs}_{timestamp}')  # Generate a unique file name
+    # Generating a unique file name
+    timestamp_path = pathlib.Path(f'{saved_model_path}/{model_class_name}'+
+    f'{name}_a={float("%.2f" % float(accuracy)) * 100}%_'+
+    f'e={epochs}_{timestamp}')
     log(f'Exporting trained model at {timestamp_path}')
     os.mkdir(f'{timestamp_path}')
-    # new_model.save(f'{timestamp_path}')  # Save the model
     model.save(timestamp_path)  # Save the model
 
     # Exporting the class names into the model's directory
@@ -554,51 +626,90 @@ def export_model(model, accuracy):
             file.write(f'{class_names[i].split("_")[0]}\n')
 
 
+# Exporting the keras model in the TFLite format.
 def export_as_tflite():
-    # Saving converting the model to TFLite (optional)
-    if save_as_lite:
-        log('Saving model as TensorFlow Lite')
-        converter = lite.TFLiteConverter.from_saved_model(
-            str(pathlib.Path(timestamp_path)))
-        tflite_model = converter.convert()
-        tflite_file_name = f'{timestamp_path}/{name}_{timestamp}.tflite'
-        with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
-            f.write(tflite_model)
-        log(f'Converted model was saved to {tflite_file_name}')
+    # Converting to the TFLite format.
+    log('Saving model as TensorFlow Lite')
+    converter = lite.TFLiteConverter.from_saved_model(
+        str(pathlib.Path(timestamp_path)))
+    tflite_model = converter.convert()
+    # Preparing a filename for the new file.
+    tflite_file_name = f'{timestamp_path}/{name}_{timestamp}.tflite'
+    # Writing the converted IFLite model onto the drive.
+    with tf.io.gfile.GFile(tflite_file_name, 'wb') as f:
+        f.write(tflite_model)
+    log(f'Converted model was saved to {tflite_file_name}')
 
 
+# The function that gets called after the script is done initing.
 def main():
+    # Processing standard input
+    log('All libraries loaded...')
     process_commands()
+
     if run:
+        # Printing a cool looking banner.
         print_banner()
         init_training_variables()
             
-        generator_train, steps_train, cls_weight_train = init_generators(PreProcess, train_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], False, True)
-        generator_validation, steps_validation, cls_weight_validation = init_generators(PreProcess, validation_dir)
-        if not skip_finetuning:
-            generator_finetuning, steps_finetuning, cls_weight_finetuning = init_generators(PreProcess, finetuning_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], False, True) 
+        # Preparing the generators for training and validating the accuracy.
+        log('Searching for datasets...')
+        generator_validation, steps_validation, cls_weight_validation = \
+            init_generators(PreProcess, validation_dir)
 
+        # Preparing a generator for training, if it is enabled.
+        generator_train = steps_train = cls_weight_train = None
+        if not skip_training:
+            generator_train, steps_train, cls_weight_train = init_generators(
+                PreProcess, train_dir, 20, 0.1, 0.1, 0.1, [0.9, 1.1], 
+                False, True)
+
+        # Preparing a generator for finetuning, if it is enabled.
+        generator_finetuning = steps_finetuning = cls_weight_finetuning = None
+        if not skip_finetuning:
+            generator_finetuning, steps_finetuning, cls_weight_finetuning = \
+                init_generators(PreProcess, finetuning_dir, 20, 0.1, 0.1, 0.1,
+                    [0.9, 1.1], False, True) 
+
+        # Building the Keras model object
         model = build_model()
 
+        # Training the model.
         training_history = finetuning_history = None
         accuracy = '0'
         try:
             if not skip_training:
-                training_history, accuracy = train(model, generator_train, steps_train, generator_validation, steps_validation, cls_weight_train, epochs)
+                log('Starting training...')
+                training_history, accuracy = train(model, generator_train, 
+                    steps_train, generator_validation, steps_validation, 
+                    cls_weight_train, epochs)
             if not skip_finetuning:
-                training_history, accuracy = train(model, generator_finetuning, steps_finetuning, generator_validation, steps_validation, cls_weight_finetuning, epochs)
-        except KeyboardInterrupt as e:
-            log('Interrupting the program...', 'error')
+                log('Starting finetuning...')
+                finetuning_history, accuracy = train(model, 
+                generator_finetuning, steps_finetuning, generator_validation, 
+                steps_validation, cls_weight_finetuning, epochs)
+        except KeyboardInterrupt:
+            log('Training was interrupted...', 'error')
         except:
             log('An unhandled exception caused a fatal error.', 'error')
-            log(f'See the traceback:\n{e.print_stack()}', 'error')
+            log(f'See', 'error', end='')
+            traceback.print_exc()
             log(f'Attempting to preserve the model.', 'error')
 
+        # Exporting the model.
         export_model(model, accuracy)
+        if save_as_lite:
+            export_as_tflite()
+
         # Printing the summary
         log(f'TRAINING FINISHED FOR{name.upper()}') 
-        log(f'classes: {num_classes}, epochs:{epochs}\ , pictures:\t{steps_train * batch_size}, accuracy:\t{str(float(accuracy) * 100)[:6]}%')
+        log(f'Classes: {num_classes}, epochs:{epochs},'+
+            f'pictures: {steps_train * batch_size},'+
+            f'accuracy: {str(float(accuracy) * 100)[:6]}%')
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        log('Quitting...', 'error')
