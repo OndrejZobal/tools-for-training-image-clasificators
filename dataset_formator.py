@@ -1,5 +1,31 @@
 #!/bin/python
 
+
+# Begin license text.
+# 
+# Copyright 2020 Ondřej Zobal
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy 
+# of this software and associated documentation files (the "Software"), to deal 
+# in the Software without restriction, including without limitation the rights 
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+# THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+# 
+# End license text.
+
+
 import os
 import sys
 import pathlib
@@ -9,34 +35,55 @@ from shutil import copyfile
 from shutil import copy
 import code
 
+# ADJUSTABLE VARIABLES.
+# Change the following group of variables to alter the behavior of the script.
+
 training_name = 'training'
 validation_name = 'validation'
 finetuning_name = 'finetuning'
 
-CALCULATE_THRESHOLD_AUTOMATICALLY = False
+# When true 'class_overfit_amount' or 'class_exclude_amount' will be replaced 
+# with automatically calculated value if set to 0.
+calculate_threshold_automatically = False 
+# Zero means don't overfit, if 'calculate_threshold_automatically' is False.
 class_overfit_amount = 300
+# Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
 class_exclude_amount = 200
-do_class_overfit = True
-do_class_exclude = True
 
+# Ratio to split values between categories.
 ratio = None
+# Path to the source directory.
 source = None
+# Path to the directory where the formated dataset will be created.
 destination = None
+# If true will use symlink, otherwise copying will be employed.
 do_symlink = True
-do_print_dirs = True
-thread_stop = False
 
+# NONADJUSTABLE VARIABLES.
+# These variables will be set by the program.
+
+# Will be filled with the class names.
 source_dirs = []
+# A table, will contain lists with files.
 source_files = []
 
+# List of indexes of classes that have to be overfitted.
 sub_avg = []
+# List of indexes of classes that have to be excluded.
 sub_acc = []
+# List of amounts of will that will need to be copied
 amounts = []
 
+# Tracking a phase of the program for the loading bar.
 phase = 0
+# Progress of creating classes.
 progress_class = 0
+# Progress of creating files.
 progress_file = 0
+# Bollean indicating the thread should exit.
+thread_stop = False
 
+# May activate some debug features.
 DEBUG = False
 
 
@@ -59,17 +106,18 @@ def banner():
 def log(message, level = 'info', start=' ', end='\n', hide_box=False):
     symbol = {
         'info': '*',
-        'varning': '@',
+        'warning': '@',
         'error': '!',
     }
 
     box = f'[{symbol.get(level)}] ' if not hide_box else ''
     nl = '\n'
-    print(f'{nl if level == "error" else ""}{start}{box}{message}',
+    print(
+        f'{nl if level == "error" else ""}{start}{box}{message}',
         end=end)
 
 
-# Exits the program prematurely and prints an error message
+# Exits the program prematurely and prints an error message.
 def stop(msg='AN ISSUE'):
     global thread_stop
     log(f'THE PROGRAM IS EXITTING DUE TO {msg.upper()}.')
@@ -77,7 +125,7 @@ def stop(msg='AN ISSUE'):
     exit()
 
 
-# This function promts the user for setting up individual values.
+# This function prompts the user for setting up individual values.
 def prompt(ratio=None, source=None, destination=None):
     # Getting the ratio
     if ratio == None:
@@ -109,7 +157,7 @@ def prompt(ratio=None, source=None, destination=None):
             # Recursively call this function to get a new input.
             return prompt(ratio, source, destination)
 
-    # Getting the soruce path.
+    # Getting the source path.
     if source == None:
         source = pathlib.Path(input('Path to the source dir: '))
         if not os.path.isdir(source):
@@ -129,7 +177,7 @@ def prompt(ratio=None, source=None, destination=None):
 # Explores the direcotries and maps the file tree.
 def map_dir():
     global source_dirs, source_files, source, sub_acc, sub_avg, \
-        CALCULATE_THRESHOLD_AUTOMATICALLY, class_overfit_amount, \
+        calculate_threshold_automatically, class_overfit_amount, \
         class_exclude_amount
 
     # TODO use generators.
@@ -159,35 +207,39 @@ def map_dir():
 
     # Calculeting the total amount of files
     total_sum = 0
-    for i, dir in enumerate(source_dirs):
+    for i, directories in enumerate(source_dirs):
         total_sum += len(source_files[i])
     average = total_sum / len(source_files)
 
-    # Automatic caluculation of the thresholds for overfitting and excluding
+    # Automatic calculation of the thresholds for overfitting and excluding
     # dataset classes based on the amount of samples provided.
-    if CALCULATE_THRESHOLD_AUTOMATICALLY:
-        if do_class_overfit and class_overfit_amount == 0:
+    if calculate_threshold_automatically:
+        if class_overfit_amount == 0:
             class_overfit_amount = total_sum / len(source_files)
-        if do_class_exclude and class_exclude_amount == 0:
+        if class_exclude_amount == 0:
             class_exclude_amount = class_overfit_amount/3*2
     
     # Comunicating the information about the thresholds.
-    log(f'The thresholds have been '+
-        f'{"calculated" if CALCULATE_THRESHOLD_AUTOMATICALLY else "set"}'+
-        ' to the following:')
+    log(
+        f'The thresholds have been '
+        + f'{"calculated" if calculate_threshold_automatically else "set"}'
+        + ' to the following:')
     log(f'Threshold for overfitting dataset is {class_overfit_amount}.')
     log(f'Threshold for excluding dataset is {class_exclude_amount}.')
 
     # Computing the amounts of files needed to transfer for every class
     # according to the thresholds.
-    for i, dir in enumerate(source_dirs):
-        if len(source_files[i]) < class_exclude_amount:
+    for i, direcotries in enumerate(source_dirs):
+        if class_exclude_amount != 0 \
+                and len(source_files[i]) < class_exclude_amount:
             sub_acc.append(i)
             amounts.append(0)
-        elif len(source_files[i]) < class_overfit_amount:
+        elif class_exclude_amount != 0 \
+                and len(source_files[i]) < class_overfit_amount:
             sub_avg.append(i)
             amounts.append(int(average / len(source_files[i])))
         else:
+            # TODO What the hell does this do lol.
             amounts.append(1)
 
 
@@ -262,7 +314,7 @@ def create(src, dest):
         except FileExistsError as e:
             pass
         except OSError as e:
-            stop(f'An OS error has occured: "{e}." !')
+            stop(f'An OS error has ocurred: "{e}." !')
 
     else:
         # Make a copy of the file
@@ -273,14 +325,15 @@ def create(src, dest):
 
 
 # Populates a single dir with samples.
-def make_dataset_dirs(path, destination_name, _range, index, amount):
+def make_dataset_dirs(path, destination_name, occurred, index, amount):
     global progress_file
     progress = 0
     while True:
-        for i in range(_range[0], _range[1]):
+        for i in range(occurred[0], occurred[1]):
             if progress >= amount:
                 return
-            create(path.joinpath(source_files[index][i]), 
+            create(
+                path.joinpath(source_files[index][i]), 
                 destination.joinpath(destination_name, source_dirs[index], 
                 f'{progress}-{source_files[index][i]}'))
             progress_file += 1
@@ -308,17 +361,20 @@ def make_dataset(index):
         do_finetuning = True
 
         # Finetuning
-        make_dataset_dirs(dataset_path_src, finetuning_name,
-            [range_2, len(source_files[index])], index, len(
-            source_files[index]) * (1 - (ratio[0] + ratio[1])) \
+        make_dataset_dirs(
+            dataset_path_src, finetuning_name,
+            [range_2, len(source_files[index])], index, 
+            len( source_files[index]) * (1 - (ratio[0] + ratio[1])) \
             * amounts[index])
 
     # Training
-    make_dataset_dirs(dataset_path_src, training_name, [0, range_1], index, 
+    make_dataset_dirs(
+        dataset_path_src, training_name, [0, range_1], index, 
         len(source_files[index]) * ratio[0] * amounts[index])
 
     # Validation
-    make_dataset_dirs(dataset_path_src, validation_name, [range_1, range_2], 
+    make_dataset_dirs(
+        dataset_path_src, validation_name, [range_1, range_2], 
         index, len(source_files[index]) * ratio2_val * amounts[index])
 
 
@@ -342,15 +398,17 @@ def print_dirs():
             log('.', start='', hide_box=True)
         log('', hide_box=True, end='\t')
 
-    log(f'There are {len(source_dirs)-len(sub_acc)-len(sub_avg)}'+
-        ' heathy datasets.')
+    log(
+        f'There are {len(source_dirs)-len(sub_acc)-len(sub_avg)}'
+        + ' heathy datasets.')
     log(f'There are {len(sub_avg)} files that are bellow average.')
-    log(f'There are {len(sub_acc)} files that have issufitient amount'+
-        ' of sampless.\n')
+    log(
+        f'There are {len(sub_acc)} files that have insufficient amount'
+        + ' of samples.\n')
 
 
-# A function that displays the proggress bar and also prints some other things.
-# It is ment to run in a separate thread.
+# A function that displays the progress bar and also prints some other things.
+# It is meant to run in a separate thread.
 def progress_bar():
     dirs = len(source_dirs)
     while phase == 0:
@@ -387,18 +445,21 @@ def progress_bar():
         # Computing the current percentage of progress.
         percentage_class = float(progress_class) / len(source_files) * 100
         percentage_file = float(progress_file) / files_total * 100
-        log(f'{"Linking" if do_symlink else "Copying"} new dataset'+\
-            f' structure at {destination}')
+        log(
+            f'{"Linking" if do_symlink else "Copying"} new dataset'
+            + f' structure at {destination}')
         
         # Preparing the string that will be printed.
-        string = f'\t[~] Class progress\t[{"█" * (int(percentage_class))}'+\
-            f'{" " * (100 - int(percentage_class))}] {int(percentage_class)}%'\
-            + f' - {int(progress_class)}/{len(source_files)}'+\
-            f' ({source_dirs[progress_class-1]}){" "*10}\n'
+        string = f'\t[~] Class progress\t[{"█" * (int(percentage_class))}'\
+            + f'{" " * (100 - int(percentage_class))}]'\
+            + f'{int(percentage_class)}%'\
+            + f' - {int(progress_class)}/{len(source_files)}'\
+            + f' ({source_dirs[progress_class-1]}){" "*10}\n'
 
-        string += f'\t[~] File progress\t[{"█" * (int(percentage_file))}'+\
-        f'{" " * (100 - int(percentage_file))}] {int(percentage_file)}% -'+\
-        f' {int(progress_file)}/{files_total}{" "*10}\n'
+        string += f'\t[~] File progress\t[{"█" * (int(percentage_file))}'\
+            + f'{" " * (100 - int(percentage_file))}]'\
+            +  f'{int(percentage_file)}% -'\
+            + f' {int(progress_file)}/{files_total}{" "*10}\n'
         log(string, end='', start='', hide_box=True)
     
     log('Done formating dataset.')
@@ -425,8 +486,7 @@ def main():
     map_dir()
 
     # Prints all the directories with the amount of pictures in them
-    if do_print_dirs:
-        print_dirs()
+    print_dirs()
 
     # Create the directory structure
     phase = 2
