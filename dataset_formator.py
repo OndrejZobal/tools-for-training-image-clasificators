@@ -32,15 +32,23 @@ import pathlib
 import time
 import threading
 from shutil import copyfile
-from shutil import copy
-import code
 
 # ADJUSTABLE VARIABLES.
 # Change the following group of variables to alter the behavior of the script.
 
-training_name = 'training'
-validation_name = 'validation'
-finetuning_name = 'finetuning'
+# The categories into wich the dataset will be divided.
+categories = [
+    'training',
+    'validation',
+    'finetuning',
+    ]
+
+# Ratio to split values between categories.
+ratio = [
+    0.6,
+    0.2,
+    0.2,
+]
 
 # When true 'class_overfit_amount' or 'class_exclude_amount' will be replaced 
 # with automatically calculated value if set to 0.
@@ -50,8 +58,6 @@ class_overfit_amount = 300
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
 class_exclude_amount = 200
 
-# Ratio to split values between categories.
-ratio = None
 # Path to the source directory.
 source = None
 # Path to the directory where the formated dataset will be created.
@@ -74,8 +80,6 @@ sub_acc = []
 # List of amounts of will that will need to be copied
 amounts = []
 
-# Tracking a phase of the program for the loading bar.
-phase = 0
 # Progress of creating classes.
 progress_class = 0
 # Progress of creating files.
@@ -89,16 +93,16 @@ DEBUG = False
 
 def banner():
     print('''\
-  ____                            
- (|   \                           
-  |    | __, _|_  __,   ,   _ _|_ 
- _|    |/  |  |  /  |  / \_|/  |  
-(/\___/ \_/|_/|_/\_/|_/ \/ |__/|_/
- ______        by Ondřej Zobal                  
-(_) |                                            
-   _|_  __   ,_    _  _  _    __, _|_  __   ,_   
-  / | |/  \_/  |  / |/ |/ |  /  |  |  /  \_/  |  
- (_/   \__/    |_/  |  |  |_/\_/|_/|_/\__/    |_/
+   ____                            
+  (|   \                           
+   |    | __, _|_  __,   ,   _ _|_ 
+  _|    |/  |  |  /  |  / \_|/  |  
+ (/\___/ \_/|_/|_/\_/|_/ \/ |__/|_/
+  ______        by Ondřej Zobal                  
+ (_) |                                            
+    _|_  __   ,_    _  _  _    __, _|_  __   ,_   
+   / | |/  \_/  |  / |/ |/ |  /  |  |  /  \_/  |  
+  (_/   \__/    |_/  |  |  |_/\_/|_/|_/\__/    |_/
 ''')
 
 
@@ -106,7 +110,7 @@ def banner():
 def log(message, level = 'info', start=' ', end='\n', hide_box=False):
     symbol = {
         'info': '*',
-        'warning': '@',
+        'warning': 'W',
         'error': '!',
     }
 
@@ -120,36 +124,192 @@ def log(message, level = 'info', start=' ', end='\n', hide_box=False):
 # Exits the program prematurely and prints an error message.
 def stop(msg='AN ISSUE'):
     global thread_stop
-    log(f'THE PROGRAM IS EXITTING DUE TO {msg.upper()}.')
+    log(f'THE PROGRAM IS EXITTING DUE TO: {msg.upper()}', 'error')
     thread_stop = True
     exit()
+
+
+# Print a help text.
+def arg_help(next_arg):
+    log('''You can use these flags:
+    -h\tDisplays this message.
+    -e\tMinimum amount of samples, before the dataset will be excluded.
+    -o\tMinimum amount of samples, before the dataset will be overfitted.
+    -S\tFlips calculate_thresholds_automatically. If true exclusion and 
+        overfitting amounts will be calculated if they have been set to 0.
+    -r\tThe ratios between the categories separated by commas. (Ex. 0.6,0.4)
+    -c\tThe names of categories separated by commas. (Ex. train,validation)
+    -s\tThe directory of the source.
+    -d\tThe directory of the destination.
+    -S\tFlips do_symlink variable. If true links will be used instead of copying.
+    ''')
+    exit()
+    return False
+
+
+# Sets the ratio
+def arg_ratio(next_arg):
+    global ratio
+    string_list = next_arg.split(',')
+    ratio = []
+    for x in string_list:
+        ratio.append(float(x))
+        
+    # If the sum of all the numbers is grater than one
+    if sum(ratio) > 1:
+        stop('Sum of ratio is greater than 1!')
+
+    return True
+
+
+# Setts the source directory
+def arg_source(next_arg):
+    global source
+    source = next_arg
+    return True
+
+
+# Setts the destination directory
+def arg_destination(next_arg):
+    global destination
+    destination = pathlib.Path(next_arg)
+    return True
+
+
+# Flips value in 'do_symlink'.
+def arg_symlink(next_arg):
+    global do_symlink
+    do_symlink = not do_symlink
+    return False
+
+
+# Sets the overfitting threshold.
+def arg_overfit_amount(next_arg):
+    global class_overfit_amount
+    try:
+        class_overfit_amount = int(next_arg)
+    except:
+        stop('Invalid command line argument passed for overfitting amount.')
+    return True
+
+
+# Sets the overfitting threshold.
+def arg_exclude_amount(next_arg):
+    global class_exclude_amount
+    try:
+        class_exclude_amount = int(next_arg)
+    except:
+        stop('Invalid command line argument passed for exclusion amount.')
+    return True
+
+# Flips value in 'calculate_threshold_automatically'.
+def arg_calculate_threshold(next_arg):
+    global calculate_threshold_automatically
+    calculate_threshold_automatically = not calculate_threshold_automatically
+    return False
+
+# Sets a name for the output categories
+def arg_category(next_arg):
+    global categories
+    categories = next_arg.split(',')
+    return True
+
+
+# Dict mapping the short forms of flags to the long ones.
+char_arg_map = {
+    # Short form | Long form
+    'C': 'calculate-thresholds',
+    'e': 'exclude',
+    'o': 'overfit',
+    'r': 'ratio',
+    's': 'source',
+    'd': 'destination',
+    'S': 'symlink',
+    'c': 'categories',
+    'h': 'help'}
+
+# Maps the long name of a flag to a argument function
+arg_dict = {
+    # Key | Function
+    'calculate-thresholds': arg_calculate_threshold,
+    'exclude': arg_exclude_amount,
+    'overfit': arg_overfit_amount,
+    'ratio': arg_ratio,
+    'source': arg_source,
+    'destination': arg_destination,
+    'symlink': arg_symlink,
+    'categories': arg_category,
+    'help': arg_help, }
+
+
+# Converts single char arguments into a full argument and calls
+# the processing function.
+def process_1char_arg(char, next_arg):
+    try:
+        # return process_arg(char_arg_map.get(char), next_arg)
+        return arg_dict[char_arg_map[char]](next_arg)
+    except Exception as e:
+        log(f'\nInvalid single dash argument was given:\n\t{e}', 'error')
+
+
+# Process command line arguments args
+def process_commands():
+    if len(sys.argv) <= 0:
+        return
+    # Set to True when flag that requires aditional argument after
+    skip = False
+    for arg in range(len(sys.argv)):
+        skip = False
+        if skip:
+            continue
+        if (sys.argv[arg][0] == '-'):
+            next_arg = ''
+            if len(sys.argv) + 1 >= arg:
+                try:
+                    next_arg = sys.argv[arg + 1]
+                except:
+                    pass
+            # Handeling 'one dash per onle letter' syntax.
+            # This will permit passing one aditional parameter
+            if len(sys.argv[arg]) == 2:
+                skip = process_1char_arg(sys.argv[arg][1], next_arg)
+            # Long arguments
+            elif len(sys.argv[arg]) > 3:
+                # Handeling 'double dash, whole word! syntax.
+                # This will permit passing aditional parameters
+                if sys.argv[arg][1] == '-':
+                    skip = arg_dict[sys.argv[arg][2:]](next_arg)
+        else:
+            # Consider the possibility of a default argument
+            pass
 
 
 # This function prompts the user for setting up individual values.
 def prompt(ratio=None, source=None, destination=None):
     # Getting the ratio
     if ratio == None:
-        ratio = input('Input ratio [TRAINING, VALIDATION]: ')\
+        temp = input('Input ratio [TRAINING, VALIDATION]: ')\
             .replace(' ', '').split(',')
-        # Checking if there are only 1 or 2 elements in the array
-        if 0 < len(ratio) < 3:
-            # Converting every element to float
-            for i in range(len(ratio)):
-                try:
-                    ratio[i] = float(ratio[i])
-                # If the input cannot be converted to floats.
-                except Exception as e:
-                    log('Not a FLOAT!', 'error')
-                    log(e, 'error')
-                    ratio = None
-                    # Recursively call this function to get a new input.
-                    return prompt(ratio, source, destination)
-            # If the sum of all the numbers is grater than one
-            if sum(ratio) > 1:
-                log('Sum of values is greater than 1!', 'error')
+        ratio = []
+        for i in temp:
+            try:
+                ratio.append(float(i))
+            except:
+                log('Not a FLOAT!', 'error')
                 ratio = None
-                # Recursively call this function to get a new input.
-                return prompt(ratio, source, destination)
+
+        if len(ratio) != len(categories) or len(ratio) != len(categories)-1:
+            ratio = None
+        else:
+            log('all fine', 'warning')
+
+        # If the sum of all the numbers is grater than one
+        if sum(ratio) > 1:
+            log('Sum of values is greater than 1!', 'error')
+            ratio = None
+            # Recursively call this function to get a new input.
+            return prompt(ratio, source, destination)
+
         # If the input has a wrong format.
         else:
             log('Too few arguments or wrong formating!', 'error')
@@ -174,13 +334,33 @@ def prompt(ratio=None, source=None, destination=None):
     return ratio, source, destination
 
 
+# Checks if the values in the config file make sense.
+def check_validity_of_configuration():
+    global ratio
+    # Calculating the last number of the ratio, in case the user was lazy.
+    if len(ratio) == len(categories) - 1:
+        ratio.append(1-sum(ratio))
+    
+    elif len(ratio) != len(categories):
+        stop('Mismatch between the amount of categories and ratio')
+
+
+def log_info():
+    log(f'Sourcing dataset from {os.path.abspath(source)}.')
+    log(f'Makeing a new {"linked" if do_symlink else "copying"} dataset at '
+        + f'{os.path.abspath(destination)}.')
+    log('', start='', hide_box=True)
+    log(f'The dataset will be split according to the following:')
+    for i, category in enumerate(categories):
+        log(f'{i}. {category}:\t{ratio[i]}')
+    log('', start='', hide_box=True)
+
 # Explores the direcotries and maps the file tree.
 def map_dir():
     global source_dirs, source_files, source, sub_acc, sub_avg, \
         calculate_threshold_automatically, class_overfit_amount, \
         class_exclude_amount
 
-    # TODO use generators.
     # Obtain directory listing.
     source_dirs = os.listdir(source)
     new_source_dirs = []
@@ -227,8 +407,8 @@ def map_dir():
     log(f'Threshold for overfitting dataset is {class_overfit_amount}.')
     log(f'Threshold for excluding dataset is {class_exclude_amount}.')
 
-    # Computing the amounts of files needed to transfer for every class
-    # according to the thresholds.
+    # Computing the multiplier of amounts of files needed to transfer for 
+    # every class # according to the thresholds.
     for i, direcotries in enumerate(source_dirs):
         if class_exclude_amount != 0 \
                 and len(source_files[i]) < class_exclude_amount:
@@ -239,14 +419,11 @@ def map_dir():
             sub_avg.append(i)
             amounts.append(int(average / len(source_files[i])))
         else:
-            # TODO What the hell does this do lol.
             amounts.append(1)
 
 
 # Creates direcory structure at the new location.
-def make_dirs():
-    global destination, source_dirs, training_name, validation_name, \
-        finetuning_name, ratio
+def make_dirs(destination, dir_list):
 
     log('Creating directory structure.')
 
@@ -257,56 +434,31 @@ def make_dirs():
     except FileExistsError:
         pass
 
-    # Populating it with the 3 base dirs:
-    # the training dir,
-    try:
-        os.mkdir(destination.joinpath(training_name))
-    except FileExistsError:
-        pass
-
-    # the validation dir
-    try:
-        os.mkdir(destination.joinpath(validation_name))
-    except FileExistsError:
-        pass
-
-    # and the finetuning dir.
-    if len(ratio) == 2:
+    for i in dir_list:
         try:
-            os.mkdir(destination.joinpath(finetuning_name))
+            os.mkdir(destination.joinpath(i))
         except FileExistsError:
             pass
+        except Exception:
+            stop(f'Couldn\'t create directory for {i}!')
 
-    # Making dirs for the individual classes.
-    for i, directory in enumerate(source_dirs):
-        if i in sub_acc:
-            continue
+        # Making dirs for the individual classes.
+        for index, directory in enumerate(source_dirs):
+            # Skip excluded datasets.
+            if index in sub_acc:
+                continue
 
-        # Making subdirectories for each class.
-        # in training.
-        try:
-            os.mkdir(destination.joinpath(training_name).joinpath(directory))
-        except FileExistsError:
-            pass
-
-        # in validation.
-        try:
-            os.mkdir(destination.joinpath(validation_name).joinpath(directory))
-        except FileExistsError:
-            pass
-
-        # in finetuning.
-        if len(ratio) == 2:
+            # Creating the class direcotories.
             try:
-                os.mkdir(destination.joinpath(
-                    finetuning_name).joinpath(directory))
+                os.mkdir(destination.joinpath(i).joinpath(directory))
             except FileExistsError:
                 pass
+            except Exception:
+                stop(f'Couldn\'t create directory for {directory} in {i}!')
 
 
 # Forwards creating a single file to the appropriate function.
 def create(src, dest):
-    global do_symlink
     if do_symlink:
         # Create a symbolic link
         try:
@@ -342,40 +494,21 @@ def make_dataset_dirs(path, destination_name, occurred, index, amount):
 
 # Initiates the population of all dirs of a one class with samples.
 def make_dataset(index):
-    global destination, source, source_dirs, source_files, ratio, progress_file
+    global ratio
 
     dataset_path_src = source.joinpath(source_dirs[index])
 
+    ranges = [0]
+
     # Computes the real ranges based on the amount of samples and ratio.
-    range_1 = int(len(source_files[index]) * ratio[0])
-    range_2 = int(len(source_files[index]))
-    ratio2_val = 1 - ratio[0]
+    for i, value in enumerate(ratio):
+        # log(f'randomass var: {value}', 'error')
+        ranges.append(
+            ranges[len(ranges)-1] + int(len(source_files[index]) * value))
 
-    # TODO What the fuck was this thing supposed to do!
-    do_finetuning = False
-
-    # Check if finetuning category is enabled.
-    if len(ratio) == 2:
-        range_2 = range_1 + int(len(source_files[index]) * ratio[1])
-        ratio2_val = ratio[1]
-        do_finetuning = True
-
-        # Finetuning
         make_dataset_dirs(
-            dataset_path_src, finetuning_name,
-            [range_2, len(source_files[index])], index, 
-            len( source_files[index]) * (1 - (ratio[0] + ratio[1])) \
-            * amounts[index])
-
-    # Training
-    make_dataset_dirs(
-        dataset_path_src, training_name, [0, range_1], index, 
-        len(source_files[index]) * ratio[0] * amounts[index])
-
-    # Validation
-    make_dataset_dirs(
-        dataset_path_src, validation_name, [range_1, range_2], 
-        index, len(source_files[index]) * ratio2_val * amounts[index])
+            dataset_path_src, categories[i], [ranges[i], ranges[i+1]],
+            index, (ranges[i+1] - ranges[i]) * amounts[index])
 
 
 # Prints a list of the classes with the amounts of samples and their standing 
@@ -391,12 +524,14 @@ def print_dirs():
     for i, dir in enumerate(source_dirs):
         log(f'{dir}\t\t\thas {len(source_files[i])} samples', end='')
         if len(source_files[i]) < average/3*2:
-            log(' (BELLOW ACCEPTABLE.)', start='', hide_box=True)
+            log(' (excluding)', start='', hide_box=True)
         elif len(source_files[i]) < average:
-            log(' (Bellow average.)', start='', hide_box=True)
+            log(' (overfitting)', start='', hide_box=True)
         else:
-            log('.', start='', hide_box=True)
+            log('', start='', hide_box=True)
         log('', hide_box=True, end='\t')
+
+    log('\n' * 2, start='', end='', hide_box=True)
 
     log(
         f'There are {len(source_dirs)-len(sub_acc)-len(sub_avg)}'
@@ -411,37 +546,18 @@ def print_dirs():
 # It is meant to run in a separate thread.
 def progress_bar():
     dirs = len(source_dirs)
-    while phase == 0:
-        time.sleep(0.01)
 
-    # Printing in Python is inconsistent sometimes.
+    # Printing in Python is inconsistent when doing a lot of processing
     # Therefore I have to print the directory listing in a separate thread.
-
-    while phase == 1 and not thread_stop:
-        time.sleep(1.33)
-        # Dumps the list of dirs.
-        if DEBUG:
-            string = 'Mapped directory structure: '
-            if dirs < len(source_dirs):
-                dirs = len(source_dirs)
-                # Delete previous line
-                for i in source_dirs:
-                    string += f'{i}, '
-            log(string)
-
-    # TODO remove from this function.
     files_total = 0
     for i, obj in enumerate(source_files):
         files_total += len(obj) * amounts[i]
     log(f'Total files found: {files_total}.')
 
-    log('\n' * 3, start='', hide_box=True)
+    log('\n', start='', hide_box=True)
+
     # Showing and updating the progress bar.
-    while phase == 2 and not thread_stop:
-        # Putting the cursor three lines up.
-        sys.stdout.write("\033[F" * 3)
-        # Giving the CUP a break before redrawing.
-        time.sleep(0.05)
+    while not thread_stop:
         # Computing the current percentage of progress.
         percentage_class = float(progress_class) / len(source_files) * 100
         percentage_file = float(progress_file) / files_total * 100
@@ -462,42 +578,55 @@ def progress_bar():
             + f' {int(progress_file)}/{files_total}{" "*10}\n'
         log(string, end='', start='', hide_box=True)
     
-    log('Done formating dataset.')
-    return
+        # Giving the CPU a break before redrawing.
+        time.sleep(0.01)
+        # Putting the cursor three lines up.
+        sys.stdout.write("\033[F" * 3)
+
+    log(f'Finished formating dataset at \'{os.path.abspath(destination)}\'.' 
+        + ' '*20)
 
 
 def main():
-    global ratio, source, destination, source_dirs, training_name, \
-        validation_name, finetuning_name, phase, progress_class
+    global ratio, source, destination, source_dirs, progress_class, thread_stop
 
-    # Greeter banner
+    # Processes command line arguments.
+    process_commands()
+
+    # Greeter banner.
     banner()
 
-    # Getting the basic parameters
+    # Getting the basic parameters.
     ratio, source, destination = prompt(
-        [0.8], pathlib.Path('/winD/Houby/'), pathlib.Path('./dataset'))
+        ratio, pathlib.Path('/winD/Houby/'), pathlib.Path('./dataset'))
 
-    # Display the progress bar
-    prog_bar = threading.Thread(target=progress_bar)
-    prog_bar.start()
+    # Making sure all the config makes sense.
+    check_validity_of_configuration()
 
-    phase = 1
-    log('Mapping direcotries.')
+    # Printing a summary of configuration.
+    log_info()
+
+    # Mapping files structure of the source dir.
+    log('Mapping direcotries...\n')
     map_dir()
 
-    # Prints all the directories with the amount of pictures in them
+    # Prints all the directories with the amount of pictures in them.
     print_dirs()
 
-    # Create the directory structure
-    phase = 2
-    make_dirs()
+    # Display the progress bar.
+    prog_bar = threading.Thread(target=progress_bar)
+    prog_bar.start()
+    
+    # Create the directory structure.
+    make_dirs(destination, categories)
 
-    # Copy files into the new dirs
+    # Copy files into the new dirs.
     for i in range(len(source_dirs)):
         make_dataset(i)
         progress_class += 1
 
-    phase = 3
+    # Stopping the progress bar.
+    thread_stop = True
     prog_bar.join()
 
 
