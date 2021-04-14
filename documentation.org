@@ -1,4 +1,4 @@
-#+TITLE:Nástroje pro trénování klasifikátoru obrázků
+#+TITLE:Nástroje pro trénování klasifikátorů
 #+AUTHOR: Ondřej Zobal
 #+EMAIL: zobal.ondrej@gmail.com
 #+DATE: 22. dubna 2021
@@ -9,17 +9,3 @@
 #+LANGUAGE: cs
 
 
-* Popis
-** TODO Motivace
-1. Potřeboval jsem udělat klasifikátor pro houbaře...
-2. Chtěl jsem si ulehčit práci vývojem pořádných utilit...
-3. Skript jsem stále vylepšoval, až do dnešní podoby
-4. Skript mi ušetřil mnoho
-
-** TODO Cíle
-
-** TODO Základní popis funkčnosti
-- Popsat ten nákres
-
-
-* Other
