@@ -52,11 +52,11 @@ ratio = [
 
 # When true 'class_overfit_amount' or 'class_exclude_amount' will be replaced 
 # with automatically calculated value if set to 0.
-calculate_threshold_automatically = False 
+calculate_threshold_automatically = True 
 # Zero means don't overfit, if 'calculate_threshold_automatically' is False.
-class_overfit_amount = 300
+class_overfit_amount = 0
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
-class_exclude_amount = 200
+class_exclude_amount = 0
 
 # Path to the source directory.
 source = None
@@ -124,7 +124,7 @@ def log(message, level = 'info', start=' ', end='\n', hide_box=False):
 # Exits the program prematurely and prints an error message.
 def stop(msg='AN ISSUE'):
     global thread_stop
-    log(f'THE PROGRAM IS EXITTING DUE TO: {msg.upper()}', 'error')
+    log(f'THE PROGRAM IS EXITTING DUE TO: {msg}', 'error')
     thread_stop = True
     exit()
 
@@ -284,6 +284,7 @@ def process_commands():
             pass
 
 
+'''
 # This function prompts the user for setting up individual values.
 def prompt(ratio=None, source=None, destination=None):
     # Getting the ratio
@@ -303,17 +304,9 @@ def prompt(ratio=None, source=None, destination=None):
         else:
             log('all fine', 'warning')
 
-        # If the sum of all the numbers is grater than one
-        if sum(ratio) > 1:
-            log('Sum of values is greater than 1!', 'error')
-            ratio = None
-            # Recursively call this function to get a new input.
-            return prompt(ratio, source, destination)
-
         # If the input has a wrong format.
-        else:
+        if ratio == None:
             log('Too few arguments or wrong formating!', 'error')
-            ratio = None
             # Recursively call this function to get a new input.
             return prompt(ratio, source, destination)
 
@@ -332,18 +325,29 @@ def prompt(ratio=None, source=None, destination=None):
             return prompt(ratio, source, destination)
 
     return ratio, source, destination
+'''
 
 
 # Checks if the values in the config file make sense.
 def check_validity_of_configuration():
-    global ratio
+    global ratio, source, destination
     # Calculating the last number of the ratio, in case the user was lazy.
     if len(ratio) == len(categories) - 1:
         ratio.append(1-sum(ratio))
     
     elif len(ratio) != len(categories):
         stop('Mismatch between the amount of categories and ratio')
+    
+    if source == None:
+        stop('Default source path is not set (use -h for help).')
+    elif type(source) == str:
+        source = pathlib.Path(source)
 
+
+    if destination == None:
+        stop('Default destination path is not set (use -h for help).')
+    elif type(destination) == str:
+        destination = pathlib.Path(destination)
 
 def log_info():
     log(f'Sourcing dataset from {os.path.abspath(source)}.')
@@ -372,16 +376,23 @@ def map_dir():
         # file in the 'source' dir.
         if os.path.isdir(source.joinpath(source_dirs[i])):
             # Adding a new list for each subdir that will contain it's files.
-            source_files.append([])
+            temp_source_files = []
             dir_pointer += 1
             # At the same time I am building a new source dir list, that
             # only contains actual directories. It's indexes will match the
             # the 'source_files' table.
-            new_source_dirs.append(source_dirs[i])
             for j in os.listdir(source.joinpath(source_dirs[i])):
                 # Making sure only files get added this time.
                 if os.path.isfile(source.joinpath(source_dirs[i]).joinpath(j)):
-                    source_files[dir_pointer].append(j)
+                    temp_source_files.append(j)
+            # Actually adding the dir & files only when there are files in it.
+            if len(temp_source_files) != 0:
+                source_files.append(temp_source_files)
+                new_source_dirs.append(source_dirs[i])
+
+    # Quit if there are classes directories to work with.
+    if len(new_source_dirs) == 0:
+        stop('The source directory contains no subdirectories.')
 
     source_dirs = new_source_dirs
 
@@ -588,20 +599,16 @@ def progress_bar():
 
 
 def main():
-    global ratio, source, destination, source_dirs, progress_class, thread_stop
+    global source_dirs, progress_class, thread_stop
 
     # Processes command line arguments.
     process_commands()
 
-    # Greeter banner.
-    banner()
-
-    # Getting the basic parameters.
-    ratio, source, destination = prompt(
-        ratio, pathlib.Path('/winD/Houby/'), pathlib.Path('./dataset'))
-
     # Making sure all the config makes sense.
     check_validity_of_configuration()
+
+    # Greeter banner.
+    banner()
 
     # Printing a summary of configuration.
     log_info()
@@ -610,13 +617,13 @@ def main():
     log('Mapping direcotries...\n')
     map_dir()
 
-    # Prints all the directories with the amount of pictures in them.
+    # Prints all the directories with the amount of samples in them.
     print_dirs()
 
     # Display the progress bar.
     prog_bar = threading.Thread(target=progress_bar)
+
     prog_bar.start()
-    
     # Create the directory structure.
     make_dirs(destination, categories)
 
