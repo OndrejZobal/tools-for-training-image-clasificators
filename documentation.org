@@ -1,11 +1,113 @@
 #+TITLE:Nástroje pro trénování klasifikátorů
-#+AUTHOR: Ondřej Zobal
+#+AUTHOR: Ondřej Zobal, V4A
 #+EMAIL: zobal.ondrej@gmail.com
-#+DATE: 22. dubna 2021
+#+DATE: 2021
 
 #+LATEX_HEADER: \usepackage[AUTO]{babel}
 #+LATEX_CLASS: article
 #+LaTeX_CLASS_OPTIONS: [a4paper]
 #+LANGUAGE: cs
 
+* Poděkování
+# Děkování IBM specificky, ireně  za organizaci challange, která tonto projekt odstartovala, poděkování ostatním členům tým, obzvláště miroslavovi za nasbírání datasetu, poděkování tiborovi Farkasovi, za to, že mi poslkytoval pomoc a hruškové za zastřešení projektu.
+Chtěl bych poděkovat
 
+* Anotace
+Cílem této maturitní práce je vytvoření programu pro přípravu trénování a trénování neurálních sítí pro obrázkovou klasifikaci, bez nutnosti znalosti programování, nebo hlubšího porozumění problematiky strojového učení.
+
+* Teoretický úvod
+Počítače nám již od minulého století umožňují spolehlivě vykonávat složité výpočty, které vyřeší ve zlomku času, které by zabraly člověku. Dlohou dobu všask nebyly počítače schopny efektivně řešit probémy, které se nadají jednoduše převést na algebraický nebo logický příklad. To se, hlavně v poslední desetiletí značně změnilo, ačkoliv koncept neurálních sítí existoval již dlohou dobu, teprve v poslední době se jejich vývoj a použití významě zrychlil.
+
+Po vítězství v soutěži IBM Challange na mě připadlo zajištění klasifikátoru pro rozpoznávání hub. To bylo poprvé, kdy jsem se začal zajímat o umělé inteligence. Zprvu jsem se snažil najít jednoduché řešení, nějaký program, který by mi umožnil vytvořit umělou inteligenci bez hlubších znalostí v této oblasti. Co jsem hledal jsem však nakonec nenašel. Ponořil jsem se tedy do knihovny TensorFlow, vyvíjenou společností Google, ta nabízí relativně vysokoúrovňový pohled na vytváření neurálních sítí, avšak je stále více komplikovaná, než nástroj, který jsem hledal na začátku a sice program, který by jako vstup bral několik důležitých parametrů, které by zkombinoval se smysluplnými výchozími hodnotami a vyprodukoval by naurální síť.
+
+Začal jsem si vyrábět jednoúčelové skripty, které by můj model trénovaly. Během vývoje jsem ale chtěl experimentovat a měnit různé parametry, abych toho docíli, musel jsem se neustále vracet a skript přepisovat, což mě značně zdržovalo, jelikož jsem například svým zásahem mohl udělat chybu, které se projevila až v pozdější části trénování a zapříčinila pád programu.
+
+Rozhodl jsem se tedy, že budu cílit více úsilí na to, abych učinil mé skripty více univerzální, ulehčil přístup k často užívaným parametrům a zpřehlednil kód pro proces trénování pro zjednodušení případných zásahů. Ačkoliv mi časové investice do vylepšování vylepšování nakonec ušetřili mnoho trpělivosti a zpříjemnili mi práci, nezbavil jsem se tužby po nějakém pohodlném kompletním řešením.
+
+Odhodlal jsem se tedy takové řešení vytvořit sám.
+
+*  Seznam použitých zkratek
+- TF - TensorFlow
+- GUI - Grafické uživatelské prostředí
+- GPU - Graphical Processing Unit (grafický procesor)
+- CPU - Central Processing Unit (procesor)
+
+* Úvod
+# počítače byly pog, ale nedokázaly přemýšlet jako lidé
+# neurální sítě jim to dovolují...
+# užitek rozpoznávání obrázků...
+
+** Neurální sítě
+# Wierd sentense lol fact check now
+ANN (umělá neurální síť) je počítačový systém, který simuluje síť neuronů a jejich interakce, za účelem vyřešení nějakého abstraktního problému. Neurální sítě jsou inspirovány mozky živých organizmů, ačkoliv samotné interakce mezi probíhají odlišným způsobem od těch bilologických.
+
+*** Struktura neurální sítě
+Neurální stíť se dělí na vrstvy, které se skládají z neurnů. Každý neuron je schopen držet nějakou hodnotu - aktivace, ta většinou bývá desetiné číslo v rozsahu od nuly, reprezentující žádnou aktivaci, po jedničku, reprazentující maximální aktivaci. Neurnoy sousedních vrstev jsou pak nějakým způsobem společně propojeny. Existují různé způsoby propojení, nejčastějšími jsou však plně propojené vrstvy tvz. `dense layer`, zde je každý neuron spojen právě jedno skaždým neuronem sousední sítě.
+
+Neurální sít můžeme dělit na tři základní části:
+1. Vrstva vstupní: Jak je z názvu zřejmé, pomocí této vrstvy dodáváme data neurální sítí ke zpracování. Neurony bývají schopny držet hodnotu nějakého desetiného čísla, většinou se používá rozsah mezi nulou a jednou. Je třeba si proto určit nějaký mechanismus, kterým se vstupní data na neurony převedou.
+2. Skrytá vrstva: Reprezentuje vrstvu, nebo skupiny vrstev neurnů, které nějakým způsobem vstupní data zpracovávají.
+3. Výstupní vrstava: Je poslední vrstva neurální sítě, neurony které obsahuje drží hodnoty výstupu, je opět třeba nějakým způsobem převšst čísla z neuronů do námi požadovaného formátu.
+
+*** Neurony v neurální síti
+# interakce hodnot mezi neurony
+Každý spoj nouronu předává hodnotu aktivace předchozího neuronu, vynásobenou tzv. `váhou`. Aktivace následujícího neuronu se vypočítá součtem všech hodnot spojů, společně s hodnotou prahu (`bias`). Výsledné číslo je pak vstupem do nějaké přenosové funkce, jejímž výstupem je pak hodnota samotného neuronu.
+
+# TODO Obrázek rovnice pro výpočet aktivace
+#+CAPTION: Rovnice pro výpočet aktivace
+[[file:img/activation.png]]
+
+Každý spoj má vlastní váhu (weight) ta slouží pro zesílení aktivací ze souvisejících neuronů. Každý neuron má vlastní prahovou hodnotu ta může mít kladnou nebo zápornou hodnotu, slouží pro zesílení nebo zeslavení výchozí aktivace daného neuronu.
+
+Přenosová funkce slouží k normalizování výstupní hodnoty do nějakého intervalu. Tradičně se v neurálních sítích používala sigmoidální přenosová funkce, která přeměnuje hodnoty blížící se nekonečnu, blízko k číslu 1 a hodnoty blížící se k zápornému nekonečnu k číslu 0.
+
+#+ATTR_LATEX: :width 7cm :options angle=0
+#+CAPTION: Graf sigmoidální funkce
+[[file:img/SigmoidFunction.svg.png]]
+
+Avšak v poslední době se od této funkce začalo upouštět veprospěch usměrněné lineární funkce (ReLU), ta není zeshora usměrněna a má lepší účinost při trénování komplexnějších deep learning modelů.
+
+#+ATTR_LATEX: :width 7cm :options angle=0
+#+CAPTION: Graf funkce ReLU
+[[file:img/Line-Plot-of-Rectified-Linear-Activation-for-Negative-and-Positive-Inputs.png]]
+
+*** Strojové učení
+Je třeba aby hodnoty váh a prahů byly správně nakonfigurované, to se dá provádět buď ručně, nebo pomocí strojového učení. Ruční trénování neuronů je vzhledem k jeho komplexnosti možné jen u jednoduchých modelů. Pokud bychom měli zadané vytvořit neurální síť na rozpoznávání ručně psaných číslic, kde by každý pixel ze vstupu odpovídal jednomu vstupnímu neuronu, mohli bychom použít *dense* vrstvu, ve které by každý neuron reprezentoval nějakou část čísla (oblouček, šikmá čára, apod.), každý z těchto neuronů by měl vysokou váhu u pixelů, které tvoří jeho obraz. Následující vrstva dense by se skládala z 10 neuronů reprezentujících výstup. Každý výstupní neuron by pak mohl mít bysokou váhu u neuronů částí, které jsou pro konkrétní číslo relevantní. Například číslo 1 by mohlo mít vysokou váhu u neuronu zaměřujícího se na dlouhou svislou čáru, šikmou čáru v horní části a vodorovnou čáru vespod.
+
+Mnohome častější je využití strojového učení. Strojové učení můžeme rozdělit na učení bez a s učitelem. Při učení bez učitele není neurální síti poskytována žádná zpětná vazba o jejich výsledcích, je proto nucena vytvořit si vlastní pojem o datech, kterým je vystavena. Tato metoda se dá například použít pro detekci anomálnií, kdy takováto neuralní síť například, které obrázky nezapadají mezi ostatní, či shlukové analýzi, při které se neurální síť sama snaží rozdělovat oběkty do různých kategorií. Pokud by jsme takovouto síť trénovali například na obrázcích aut a kol, neurální siť by si sama uvědomila rozdíl mezi těmito oběkty a shlukovala by je zvlášť, navíc by umisťovala by se dalo odčekávat, že by uvnitř pomyslné množiny aut umisťovala podobné typy aut blíže k sobě (dodávky, sportovní auta, atd.)
+
+# Obrázek shlukování
+#+CAPTION: Graf analýzi shlukování
+[[file:img/1024px-Cluster-2.svg.png]]
+
+Metoda při metodě učení s učitelem naopak neurální síti poskytujeme zpětnou vazbu, na základě které se neurální síť snaží přizpůsobit. Například pokud bychom chtěli neurální síť naučit klasifikovat obrázky zvířat, dodávali by jsme vzorové obrázky společně s informacemi o které zvíře se jedná. Neurální síť se tedy dozví, kdy udělá chybu a má může se pokusit upravit svoje parametry ke zlepšení výsledku.
+
+# Backpropagation
+Při trénování umělé inteligence využíváme nějakou nákladovou funkci (cost function/loss function), která nám ukazuje efektivitu trénování, toto číslo můžeme použít v algoritmu zpětného šíření chyby (backprogapagtion), který z ní vytvoří gradient (pole vektorů, vyjadřující směr a velikost změny), který je aplikován na hodnoty vah a prahů. Zjednodušeně by se to dalo vysvětlit tak, že porovnáváme aktivace na výstupní vrstvě s aktivacemi, které jsme odčekávali a pak od výstupu směrem ke vstupu postupujeme vrstvami a pozměnujeme jejich hodnoty, tak aby se výstup přiblížil našemu odčekávámí. Tímto způsobem docílíme zvýšení přesnosti předpovědí a snížení nákladové funkce.
+
+V praxy je backpropagation poměrně výkonově náročný proces. Proto vstupní data většinou dělíme na dávky (batch), obsahující nějaké množství trénovací dat a backprogapagtion provádíme nakonci každé dávky pro všechny vzorky. V maximální velikosti dánvky nás může limitovat velikost paměti. Sílu, kterou parametry neurální sítě při trénování mění můžeme upravovat pomocí "learning rate."
+
+
+* Implementace
+
+Jelikož jsem chtěl, aby neurální síť v naší mobilní aplikace byla schopna fungovat i v lese a to bez internetového připojení, bylo třeba aby fungovala lokálně na mobilním zařízení. Jednim z mých hlavních požadavků, při hledání nějaké knihovny pro zjednodušení implementace zdrojového učení, byla kompatibilita s aplikacemi Android. Zvolil jsem knihovnu TensorFlow, ta je vyvíjena společností Google a má výbornou podporu s mobilními zařízeními, skrze svůj odlehčený formát "tflite." Knihovna TF je dostupná v programovacím jazyce Python, se kterým mám zkušenosti ze školy, což jsem bral jako plus. Navíc TF obsahuje vysokoúrovňovou knihovnu Keras, která zjednodušuje a některé procesy.
+
+** Interakce s programem
+Jako primární způsob interakce s programem jsem si zvolil příkazový řádek. Grafické uživatelské rozhraní mi přišlo jako naprostá zbytečnost, vzhledem k vyšší úrovni počítačové gramotnosti, kterou přirozeně měla cílová skupina takového programu. Navíc implementace GUI v Pythonu - jazyce, který jsem používal je velmi těžkopádná.
+
+Zprvu jsem uvažoval o prmptech, které by se postupně dotazovali na parametry trénování, to se ovšem ukázalo jako velmi otravné, jelikož vyplněování takovýchto nabídek se těžko automatizuje, což je nepříjemné, pokud se snažíme trénovat více modelů s podobnými parametry zasebou.
+
+Namísto promptů jsem se tedy rozhodl zvolit argumenty příkazové řádky, ty se ukázali být ideální volbou. Pro přiřazování hodnot k patřičným parametrům jsem zvolil, u Posixových programů populární notaci `-` a `--` (pomlčky a dvojité pomlčky), kdy má každý nastavitelný parametr nějaké jméno, které uživatel umožní nastavit daný parametr a to pomocí dvou pomlček, následované jménem parametru napříkal: `--skip-finetuning`. Často používané parametry pak mohou mít zkrácenou podobu, a sice jediné písmeno, které nějak logicky navazuje na jméno samotného parametru, jemuž předchází jedna pomlčka `-f`. V obou případech rozlišujeme malá i velká písmena, což se nám hodí obzvláště v případě, kdy chceme vytvořit zkratku pro dva parametry, které začínají na stejné písmeno, jelikož můžeme jednomu parametru přiřadit písmeno malé a velké.
+
+Parametry mohou sloužít buď jako přepínače bez parametrů, kdy jejich pohá přítomnost zapříčiní nastavení něajkého hodnoty, nebo mohou vyžadovat dodatečno hodnotu (například: `--epoch 20`). Parametry a hodnoty jsou od sebe odděleny pomocí mezer. Program `retrain.py` navíc příjmá pozičí pro nastavení složky se vzorovými obrázky, kterému nepředchází žádná vlajka.
+
+V situaci, kdy uživatel nastaví jeden parametr vícekrát se uplatní později zadaná hodnota a pro veškeré parametry, které uživatel nenastaví, se použijí výchozí hodnoty, které jsou nastaveny ve zdrojovém kódu.
+
+# Básnit o tem jak tam vymýšlim cestu k výstupu
+
+* Zdroje
+https://en.wikipedia.org/wiki/Artificial_neural_network
+https://cs.wikipedia.org/wiki/Um%C4%9Bl%C3%A1_neuronov%C3%A1_s%C3%AD%C5%A5
+https://is.muni.cz/th/tmuko/thesis.pdf
+https://en.wikipedia.org/wiki/Backpropagation
+https://www.analyticsvidhya.com/blog/2020/01/fundamentals-deep-learning-activation-functions-when-to-use-them/
