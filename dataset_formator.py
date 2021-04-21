@@ -54,7 +54,7 @@ ratio = [
 # with automatically calculated value if set to 0.
 calculate_threshold_automatically = True 
 # Zero means don't overfit, if 'calculate_threshold_automatically' is False.
-class_overfit_amount = 0
+class_duplicate_amount = 0
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
 class_exclude_amount = 0
 
@@ -107,7 +107,7 @@ def banner():
 
 
 # The map translating the single char arguments into full string arguments.
-def log(message, level = 'info', start=' ', end='\n', hide_box=False):
+def log(message, level='info', start=' ', end='\n', hide_box=False):
     symbol = {
         'info': '*',
         'warning': 'W',
@@ -184,10 +184,10 @@ def arg_symlink(next_arg):
 
 
 # Sets the overfitting threshold.
-def arg_overfit_amount(next_arg):
-    global class_overfit_amount
+def arg_duplicate_amount(next_arg):
+    global class_duplicate_amount
     try:
-        class_overfit_amount = int(next_arg)
+        class_duplicate_amount = int(next_arg)
     except:
         stop('Invalid command line argument passed for overfitting amount.')
     return True
@@ -220,7 +220,7 @@ char_arg_map = {
     # Short form | Long form
     'C': 'calculate-thresholds',
     'e': 'exclude',
-    'o': 'overfit',
+    'D': 'duplicate',
     'r': 'ratio',
     's': 'source',
     'd': 'destination',
@@ -233,7 +233,7 @@ arg_dict = {
     # Key | Function
     'calculate-thresholds': arg_calculate_threshold,
     'exclude': arg_exclude_amount,
-    'overfit': arg_overfit_amount,
+    'duplicate': arg_duplicate_amount,
     'ratio': arg_ratio,
     'source': arg_source,
     'destination': arg_destination,
@@ -614,7 +614,7 @@ def main():
     log_info()
 
     # Mapping files structure of the source dir.
-    log('Mapping direcotries...\n')
+    log('Mapping directories...\n')
     map_dir()
 
     # Prints all the directories with the amount of samples in them.

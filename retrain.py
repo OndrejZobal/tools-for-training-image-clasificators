@@ -36,7 +36,6 @@ from tensorflow.keras.optimizers import Adam, RMSprop
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 # Loading the efficient pretrained model used for transfer learning.
 # from tensorflow.keras.applications.inception_v3 import \
-#     preprocess_input as PreProcess
 # Layers that will be used
 from tensorflow.keras.layers import Dense, Flatten, Dropout, Input
 # Object for building the model
@@ -78,8 +77,6 @@ checkpoint_path = 'checkpoints/'
 saved_model_path = 'saved_models/'
 # Default model filename.
 name = 'kockopsy'
-# Name of the parent dir to the model dir.
-model_class_name = 'type'
 # Selecting a training function. Can be either 'keras' or 'tf'.
 training_function = 'keras'
 # Name of the pretrained model to be used. Only specific models are supported.
@@ -119,7 +116,7 @@ input_shape = (299, 299, 3)
 # the training.
 info = []
 # Dump of all the messages printed with the log()
-log_dump = ''
+log_dump = []
 # The number of epochs according to the models history
 initial_epoch = 1
 # Keeps the value of starting epoch between training.
@@ -148,6 +145,8 @@ preprocessing_function = None
 is_base = True
 # List of neuron amounts of dense layers of the head of the model.
 dense_amount_list = [64]
+# Name of the parent dir to the model dir.
+model_class_name = None
 '''
 # A string for 
 dense_amount_list_str = ''
@@ -156,10 +155,6 @@ dense_amount_list_str = ''
 callbacks = []
 
 saved_model_path = pathlib.Path(saved_model_path)
-dataset_dir = pathlib.Path(dataset_dir)
-train_dir = dataset_dir.joinpath(train_dir)
-validation_dir = dataset_dir.joinpath(validation_dir)
-finetuning_dir = dataset_dir.joinpath(finetuning_dir)
 
 
 # The map translating the single char arguments into full string arguments.
@@ -174,7 +169,7 @@ def log(message, level='info', start=' ', end='\n', hide_box=False):
     box = f'[{symbol.get(level)}] ' if not hide_box else ''
     nl = '\n'
     message = f'{nl if level == "error" else ""}{start}{box}{message}{end}'
-    log_dump += message
+    log_dump.append(message)
     print(message, end='')
 
 
@@ -225,7 +220,7 @@ def arg_name(next_arg):
 
 # Loads the whole model (including the classification layer).
 def arg_load(next_arg):
-    global loaded_model, is_base, timestamp_path, info, name, model_class_name,\
+    global loaded_model, is_base, timestamp_path, info, name, \
         pretrained_model_name, training_function, dataset_dir, start_epoch,\
         initial_epoch
     path = pathlib.Path(next_arg)
@@ -236,7 +231,6 @@ def arg_load(next_arg):
             info = json.load(file)
             last_info = info[0]
             name = last_info['name']
-            model_class_name = last_info['type_name']
             pretrained_model_name = last_info['pretrained_name']
             initial_epoch = last_info['end_epoch']
 
@@ -353,7 +347,7 @@ def arg_dense_count(next_arg):
 
 
 # Loads a specified model as the base model.
-def arg_base(next_arg):
+def arg_pretrained_custom(next_arg):
     global loaded_model
     path = pathlib.Path(next_arg)
     log(f'\nLoading a base model from {path}.\n')
@@ -374,6 +368,7 @@ def arg_skip(next_arg):
     run = False
     return False
 
+
 # Picks training method.
 def arg_pick_training_method(next_arg):
     global training_function
@@ -387,6 +382,13 @@ def arg_tensorboard(next_arg):
     os.system(f'tensorboard --logdir {log_dir}')
     exit()
 
+
+def arg_default(next_arg):
+    global dataset_dir
+    dataset_dir = pathlib.Path(next_arg)
+    return True
+
+
 # Dict mapping the short forms of flags to the long ones.
 char_arg_map = {
     # Short form | Long form
@@ -394,13 +396,14 @@ char_arg_map = {
     'n':    'name',
     'l':    'load',
     'b':    'base',
+    'B':    'base-custom',
     'e':    'epochs',
     'c':    'load-checkpoint',
     'v':    'version',
     'd':    'dense',
     's':    'skip',
-    't':    'skip_training',
-    'f':    'skip_finetuning', }
+    't':    'skip-training',
+    'f':    'skip-finetuning', }
 
 # Maps the long name of a flag to a argument function.
 arg_dict = {
@@ -417,7 +420,7 @@ arg_dict = {
     'lr-finetuning': arg_lr_finetuning,
     'version': arg_version,
     'dense': arg_dense_amount,
-    'base': arg_base,
+    'base-custom': arg_pretrained_custom,
     'lite': arg_lite,
     'skip': arg_skip,
     'tensorboard': arg_tensorboard,
@@ -434,17 +437,17 @@ def process_1char_arg(char, next_arg):
         log(f'Invalid single dash argument was given:\n\t{e}', 'error')
 
 
-# Process command line arguments args
+# Process command line arguments
 def process_commands():
     if len(sys.argv) <= 0:
         return
     # Set to True when flag that requires additional argument after
     skip = False
-    for arg in range(len(sys.argv)):
-        skip = False
+    for arg in range(len(sys.argv))[1:]:
         if skip:
+            skip = False
             continue
-        if (sys.argv[arg][0] == '-'):
+        if sys.argv[arg][0] == '-':
             next_arg = ''
             if len(sys.argv) + 1 >= arg:
                 try:
@@ -461,9 +464,9 @@ def process_commands():
                 # This will permit passing additional parameters
                 if sys.argv[arg][1] == '-':
                     skip = arg_dict[sys.argv[arg][2:]](next_arg)
+
         else:
-            # Consider the possibility of a default argument
-            pass
+            arg_default(sys.argv[arg])
 
 
 def set_pretrained_model(name):
@@ -480,8 +483,6 @@ def set_pretrained_model(name):
 
 
 def set_preprocessing_function(name):
-    global preprocessing_dict
-
     preprocessing_dict = {
         'xception': tf.keras.applications.xception.preprocess_input,
         'vgg16': tf.keras.applications.vgg16.preprocess_input,
@@ -491,28 +492,29 @@ def set_preprocessing_function(name):
     }
 
     try:
-        preprocessing_dict = preprocessing_dict[name]
+        return preprocessing_dict[name]
     except KeyError:
         log(f'{name} is not a supported base model.', 'error')
         exit()
 
 
-    if name == 'xception':
-        loaded_model = tf.keras.applications.Xception(False,
-            input_shape=input_shape)
-        preprocessing_function = tf.keras.applications.xception.preprocess_input
-    elif name == 'vgg16':
-        loaded_model = tf.keras.applications.VGG16(False,
-            input_shape=input_shape)
-        preprocessing_function = tf.keras.applications.vgg16.preprocess_input
-    elif name == '':
-        loaded_model = tf.keras.applications.VGG16(False,
-            input_shape=input_shape)
-        preprocessing_function = tf.keras.applications.vgg16.preprocess_input
+# Unfreezing the model for the finetuning phase.
+def unfreeze_model_loaded_model():
+    global loaded_model
+
+    loaded_model.trainable = True
+    for layers in loaded_model.layers:
+        layers.trainable = True
 
 
 def init_training_variables():
-    global loaded_model, model_class_name, callbacks
+    global loaded_model, callbacks, dataset_dir, train_dir, model_class_name,\
+        validation_dir, finetuning_dir
+
+    dataset_dir = pathlib.Path(dataset_dir)
+    train_dir = dataset_dir.joinpath(train_dir)
+    validation_dir = dataset_dir.joinpath(validation_dir)
+    finetuning_dir = dataset_dir.joinpath(finetuning_dir)
 
     optimizer_training = Adam(lr=learning_rate_train)
     optimizer_finetuning = Adam(lr=learning_rate_finetuning)
@@ -532,7 +534,8 @@ def init_training_variables():
     dense_amount_list_str = str(dense_amount_list).replace("[", "")\
         .replace("]", "").replace(" ", "-")
 
-    model_class_name += f'_{pretrained_model_name}_d={dense_amount_list_str}'
+    model_class_name = f'{dataset_dir}_{pretrained_model_name}_d='\
+        + f'{dense_amount_list_str}'
 
     # Create a category directory for the models.
     if not os.path.exists(saved_model_path.joinpath(model_class_name)):
@@ -571,7 +574,7 @@ def load_class_names(generator):
         log('MISSMATCH BETWEEN THE NUMBER OF CLASSES IN A DATASET', 'error')
         log(f'Previously loaded classes: {class_names}', 'error')
         log(f'Currently loaded classes: {names}', 'error')
-        # TODO Halt execution
+        exit()
 
     log(f'The following classes were loaded:')
     for i in range(int(len(names)/3)+1):
@@ -636,7 +639,7 @@ def build_model():
     if is_base:
         set_pretrained_model(pretrained_model_name)
 
-        # Freezing the base model for normal training..
+        # Freezing the base model for normal training.
         loaded_model.trainable = False
         for layers in loaded_model.layers:
             layers.trainable = False
@@ -667,17 +670,22 @@ def build_model():
     return model
 
 # Use a custom TensorFlow function for training.
+'''
 def train_with_tf(model, optimizrer, train, ds, epoch, lr, sample_weight,
     optimizer):
-    log('Hello there motherfuckers')
+'''
+def train_with_tf(model, optimizer, generator, generator_steps,
+    generator_validation, generator_validation_steps, class_weight,
+    epochs, starting_epoch):
+    pass
+    '''
     train_acc = None
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
     loss_fn = tf.keras.losses.CategoricalCrossentropy(from_logits=True)
     acc_metric = tf.keras.metrics.CategoricalCrossentropy()
     for epoch in range(epochs):
         log(f'Start of Training Epoch {epoch}')
         num_batches = 0
-        for i, (x_batch, y_batch) in enumerate(ds):
+        for i, (x_batch, y_batch) in enumerate(generator):
             num_batches += 1
             with tf.GradientTape() as tape:
                 # Running the prediction.
@@ -701,11 +709,13 @@ def train_with_tf(model, optimizrer, train, ds, epoch, lr, sample_weight,
         acc_metric.reset_states()
 
     return train_acc
+    '''
 
 
 # Use the build-in Keras. Fit function for training.
-def train_with_keras(model, optimizer, generator, generator_steps, generator_validation,
-    generator_validation_steps, class_weight, epochs, starting_epoch):
+def train_with_keras(model, optimizer, generator, generator_steps,
+    generator_validation, generator_validation_steps, class_weight, epochs,
+    starting_epoch):
     accuracy = '0'
 
     class_weight = dict(enumerate(class_weight))
@@ -744,7 +754,7 @@ def train(model, optimizer, generator, generator_steps, generator_validation,
     type_of_training='keras'):
     switcher = {
         'keras': train_with_keras,
-        'tf': train_with_tf
+        # 'tf': train_with_tf
     }
 
     return switcher[type_of_training](model, optimizer, generator,
@@ -754,7 +764,7 @@ def train(model, optimizer, generator, generator_steps, generator_validation,
 
 # Exports the keras model into a new directory.
 def export_model(model, accuracy, loss, actual_epochs):
-    global timestamp_path, info, start_epoch, initial_epoch, log_dump
+    global timestamp_path, info, start_epoch, initial_epoch, log_dump, name
 
     log('Exporting the model...')
     # Exporting the trained model.
@@ -769,9 +779,16 @@ def export_model(model, accuracy, loss, actual_epochs):
     model.save(timestamp_path)
 
     # Exporting the class names into the model's directory.
-    with open(timestamp_path.joinpath('classes'), 'a') as file:
+    try:
+        names = []
         for i in range(len(class_names)):
-            file.write(f'{class_names[i].split("_")[0]}\n')
+            num = int(class_names[i].split("_")[0])
+            names.append(f'{num}\n')
+        with open(timestamp_path.joinpath('classes'), 'a') as file:
+            for name in names:
+                file.write(name)
+    except:
+        pass
 
 
     new_info = {
@@ -782,12 +799,10 @@ def export_model(model, accuracy, loss, actual_epochs):
         'dataset_dir': str(dataset_dir),
         'loaded_checkpoint': checkpoint_name,
         'start_epoch': initial_epoch,
-        # TODO Use a better system (in case the training is not actually
-        # finished).
         'end_epoch': actual_epochs,
         'class_number': len(class_names),
         'classes': class_names,
-        'accuracy': float(accuracy),    # TODO make sure this doesn't blow up!
+        'accuracy': float(accuracy),
         'loss': loss,
         'dense_layers': dense_amount_list,
         'training_function': training_function,
@@ -799,9 +814,11 @@ def export_model(model, accuracy, loss, actual_epochs):
         json.dump(info, file, indent=4)
 
     # Exporting log dump.
-    log_dump = log_dump.replace('\\n', '\n').replace('\\t', '\t')
-    with open(timestamp_path.joinpath('output.txt'), 'w') as file:
-        json.dump(log_dump, file, indent=4)
+    # log_dump = log_dump.replace('\\n', '\n').replace('\\t', '\t')
+    with open(timestamp_path.joinpath('output.txt'), 'a') as file:
+        for i in log_dump:
+            file.write(i)
+
 
 # Exporting the keras model in the TFLite format.
 def export_as_tflite():
@@ -830,7 +847,8 @@ def main():
         print_banner()
         optimizer_training, optimizer_finetuning = init_training_variables()
 
-        set_preprocessing_function(pretrained_model_name)
+        preprocessing_function = set_preprocessing_function(
+            pretrained_model_name)
         # Preparing the generators for training and validating the accuracy.
         log('Searching for datasets...')
         generator_validation = steps_validation = None
@@ -860,8 +878,9 @@ def main():
         actual_epochs = 0
         # Training the model.
         try:
+            # The training phase
             if not skip_training:
-                log('', hide_box=True)
+                log('', start='', hide_box=True)
                 log('Starting the training phase.')
                 next_epochs = start_epoch + epochs_training
 
@@ -878,10 +897,13 @@ def main():
                 loss = loss_val_train
                 actual_epochs += actual_epochs_train
 
+            # The finetuning phase
             if not skip_finetuning:
-                log('', hide_box=False)
+                log('', start='', hide_box=True)
                 log('Starting the finetuning phase.')
                 next_epochs = start_epoch + epochs_finetuning
+
+                unfreeze_model_loaded_model()
 
                 accuracy_finetuning, loss_val_finetuning, \
                     actual_epochs_finetuning = train(
