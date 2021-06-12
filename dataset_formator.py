@@ -3,7 +3,7 @@
 
 # Begin license text.
 # 
-# Copyright 2020 Ondřej Zobal
+# Copyright 2021 Ondřej Zobal
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy 
 # of this software and associated documentation files (the "Software"), to deal 
@@ -473,11 +473,11 @@ def create(src, dest):
     if do_symlink:
         # Create a symbolic link
         try:
-            os.symlink(src, dest)
+            os.symlink(os.path.abspath(src, dest))
         except FileExistsError as e:
             pass
         except OSError as e:
-            stop(f'An OS error has ocurred: "{e}." !')
+            stop(f'An OS error has occurred: "{e}." !')
 
     else:
         # Make a copy of the file
