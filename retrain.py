@@ -3,7 +3,7 @@
 
 # Begin license text.
 #
-# Copyright 2020 Ondřej Zobal
+# Copyright 2021 Ondřej Zobal
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -63,7 +63,7 @@ import json
 # Change these variables to alter the script.
 
 # Path to the dir containing the categories.
-dataset_dir = 'kockopsy'
+dataset_dir = 'dataset'
 # Paths to individual dataset categories (inside of 'dataset_dir').
 train_dir = 'training/'
 finetuning_dir = 'finetuning/'
@@ -232,7 +232,7 @@ def arg_load(next_arg):
         with open(pathlib.Path(next_arg).joinpath('info.json'), 'r') as file:
             info = json.load(file)
             last_info = info[0]
-            name = last_info['name']
+            name = last_info['model_name']
             pretrained_model_name = last_info['pretrained_name']
             initial_epoch = last_info['end_epoch']
 
@@ -242,7 +242,7 @@ def arg_load(next_arg):
                 dataset_dir = info['dataset_dir']
 
             log('info.json was loaded successfully.')
-    except Exception:
+    except Exception as ex:
         log('info.json was not found.', 'warning')
     is_base = False
     timestamp_path = path

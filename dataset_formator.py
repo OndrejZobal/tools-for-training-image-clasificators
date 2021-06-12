@@ -2,19 +2,19 @@
 
 
 # Begin license text.
-# 
-# Copyright 2020 Ondřej Zobal
-# 
-# Permission is hereby granted, free of charge, to any person obtaining a copy 
-# of this software and associated documentation files (the "Software"), to deal 
-# in the Software without restriction, including without limitation the rights 
+#
+# Copyright 2021 Ondřej Zobal
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
 # furnished to do so, subject to the following conditions:
-# 
+#
 # The above copyright notice and this permission notice shall be included in
 # all copies or substantial portions of the Software.
-# 
+#
 # THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 # IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
@@ -22,7 +22,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-# 
+#
 # End license text.
 
 
@@ -52,7 +52,7 @@ ratio = [
 
 # When true 'class_duplicate_amount' or 'class_exclude_amount' will be replaced
 # with automatically calculated value if set to 0.
-calculate_threshold_automatically = True 
+calculate_threshold_automatically = True
 # Zero means don't duplicate, if 'calculate_threshold_automatically' is False.
 class_duplicate_amount = 0
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
@@ -93,15 +93,15 @@ DEBUG = False
 
 def banner():
     print('''\
-   ____                            
-  (|   \                           
-   |    | __, _|_  __,   ,   _ _|_ 
-  _|    |/  |  |  /  |  / \_|/  |  
+   ____
+  (|   \
+   |    | __, _|_  __,   ,   _ _|_
+  _|    |/  |  |  /  |  / \_|/  |
  (/\___/ \_/|_/|_/\_/|_/ \/ |__/|_/
-  ______        by Ondřej Zobal                  
- (_) |                                            
-    _|_  __   ,_    _  _  _    __, _|_  __   ,_   
-   / | |/  \_/  |  / |/ |/ |  /  |  |  /  \_/  |  
+  ______        by Ondřej Zobal
+ (_) |
+    _|_  __   ,_    _  _  _    __, _|_  __   ,_
+   / | |/  \_/  |  / |/ |/ |  /  |  |  /  \_/  |
   (_/   \__/    |_/  |  |  |_/\_/|_/|_/\__/    |_/
 ''')
 
@@ -135,7 +135,7 @@ def arg_help(next_arg):
     -h\tDisplays this message.
     -e\tMinimum amount of samples, before the dataset will be excluded.
     -D\tMinimum amount of samples, before the dataset will be duplicated.
-    -S\tFlips calculate_thresholds_automatically. If true exclusion and 
+    -S\tFlips calculate_thresholds_automatically. If true exclusion and
         duplicating amounts will be calculated if they have been set to 0.
     -r\tThe ratios between the categories separated by commas. (Ex. 0.6,0.4)
     -c\tThe names of categories separated by commas. (Ex. train,validation)
@@ -154,7 +154,7 @@ def arg_ratio(next_arg):
     ratio = []
     for x in string_list:
         ratio.append(float(x))
-        
+
     # If the sum of all the numbers is grater than one
     if sum(ratio) > 1:
         stop('Sum of ratio is greater than 1!')
@@ -334,10 +334,10 @@ def check_validity_of_configuration():
     # Calculating the last number of the ratio, in case the user was lazy.
     if len(ratio) == len(categories) - 1:
         ratio.append(1-sum(ratio))
-    
+
     elif len(ratio) != len(categories):
         stop('Mismatch between the amount of categories and ratio')
-    
+
     if source == None:
         stop('Default source path is not set (use -h for help).')
     elif type(source) == str:
@@ -409,7 +409,7 @@ def map_dir():
             class_duplicate_amount = total_sum / len(source_files)
         if class_exclude_amount == 0:
             class_exclude_amount = class_duplicate_amount/3*2
-    
+
     # Comunicating the information about the thresholds.
     log(
         f'The thresholds have been '
@@ -418,7 +418,7 @@ def map_dir():
     log(f'Threshold for duplicating dataset is {class_duplicate_amount}.')
     log(f'Threshold for excluding dataset is {class_exclude_amount}.')
 
-    # Computing the multiplier of amounts of files needed to transfer for 
+    # Computing the multiplier of amounts of files needed to transfer for
     # every class # according to the thresholds.
     for i, direcotries in enumerate(source_dirs):
         if class_exclude_amount != 0 \
@@ -473,11 +473,11 @@ def create(src, dest):
     if do_symlink:
         # Create a symbolic link
         try:
-            os.symlink(src, dest)
+            os.symlink(os.path.abspath(src), dest)
         except FileExistsError as e:
             pass
         except OSError as e:
-            stop(f'An OS error has ocurred: "{e}." !')
+            stop(f'An OS error has occurred: "{e}." !')
 
     else:
         # Make a copy of the file
@@ -496,8 +496,8 @@ def make_dataset_dirs(path, destination_name, occurred, index, amount):
             if progress >= amount:
                 return
             create(
-                path.joinpath(source_files[index][i]), 
-                destination.joinpath(destination_name, source_dirs[index], 
+                path.joinpath(source_files[index][i]),
+                destination.joinpath(destination_name, source_dirs[index],
                 f'{progress}-{source_files[index][i]}'))
             progress_file += 1
             progress += 1
@@ -522,7 +522,7 @@ def make_dataset(index):
             index, (ranges[i+1] - ranges[i]) * amounts[index])
 
 
-# Prints a list of the classes with the amounts of samples and their standing 
+# Prints a list of the classes with the amounts of samples and their standing
 # according to the threshold.
 def print_dirs():
     total_sum = 0
@@ -575,7 +575,7 @@ def progress_bar():
         log(
             f'{"Linking" if do_symlink else "Copying"} new dataset'
             + f' structure at {destination}')
-        
+
         # Preparing the string that will be printed.
         string = f'\t[~] Class progress\t[{"█" * (int(percentage_class))}'\
             + f'{" " * (100 - int(percentage_class))}]'\
@@ -588,13 +588,13 @@ def progress_bar():
             +  f'{int(percentage_file)}% -'\
             + f' {int(progress_file)}/{files_total}{" "*10}\n'
         log(string, end='', start='', hide_box=True)
-    
+
         # Giving the CPU a break before redrawing.
         time.sleep(0.01)
         # Putting the cursor three lines up.
         sys.stdout.write("\033[F" * 3)
 
-    log(f'Finished formating dataset at \'{os.path.abspath(destination)}\'.' 
+    log(f'Finished formating dataset at \'{os.path.abspath(destination)}\'.'
         + ' '*20)
 
 
