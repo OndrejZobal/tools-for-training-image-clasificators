@@ -50,10 +50,10 @@ ratio = [
     0.2,
 ]
 
-# When true 'class_overfit_amount' or 'class_exclude_amount' will be replaced 
+# When true 'class_duplicate_amount' or 'class_exclude_amount' will be replaced
 # with automatically calculated value if set to 0.
 calculate_threshold_automatically = True 
-# Zero means don't overfit, if 'calculate_threshold_automatically' is False.
+# Zero means don't duplicate, if 'calculate_threshold_automatically' is False.
 class_duplicate_amount = 0
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
 class_exclude_amount = 0
@@ -134,9 +134,9 @@ def arg_help(next_arg):
     log('''You can use these flags:
     -h\tDisplays this message.
     -e\tMinimum amount of samples, before the dataset will be excluded.
-    -o\tMinimum amount of samples, before the dataset will be overfitted.
+    -D\tMinimum amount of samples, before the dataset will be duplicated.
     -S\tFlips calculate_thresholds_automatically. If true exclusion and 
-        overfitting amounts will be calculated if they have been set to 0.
+        duplicating amounts will be calculated if they have been set to 0.
     -r\tThe ratios between the categories separated by commas. (Ex. 0.6,0.4)
     -c\tThe names of categories separated by commas. (Ex. train,validation)
     -s\tThe directory of the source.
@@ -183,17 +183,17 @@ def arg_symlink(next_arg):
     return False
 
 
-# Sets the overfitting threshold.
+# Sets the duplicate threshold.
 def arg_duplicate_amount(next_arg):
     global class_duplicate_amount
     try:
         class_duplicate_amount = int(next_arg)
     except:
-        stop('Invalid command line argument passed for overfitting amount.')
+        stop('Invalid command line argument passed for duplicating amount.')
     return True
 
 
-# Sets the overfitting threshold.
+# Sets the duplicating threshold.
 def arg_exclude_amount(next_arg):
     global class_exclude_amount
     try:
@@ -362,7 +362,7 @@ def log_info():
 # Explores the direcotries and maps the file tree.
 def map_dir():
     global source_dirs, source_files, source, sub_acc, sub_avg, \
-        calculate_threshold_automatically, class_overfit_amount, \
+        calculate_threshold_automatically, class_duplicate_amount, \
         class_exclude_amount
 
     # Obtain directory listing.
@@ -402,20 +402,20 @@ def map_dir():
         total_sum += len(source_files[i])
     average = total_sum / len(source_files)
 
-    # Automatic calculation of the thresholds for overfitting and excluding
+    # Automatic calculation of the thresholds for duplicating and excluding
     # dataset classes based on the amount of samples provided.
     if calculate_threshold_automatically:
-        if class_overfit_amount == 0:
-            class_overfit_amount = total_sum / len(source_files)
+        if class_duplicate_amount == 0:
+            class_duplicate_amount = total_sum / len(source_files)
         if class_exclude_amount == 0:
-            class_exclude_amount = class_overfit_amount/3*2
+            class_exclude_amount = class_duplicate_amount/3*2
     
     # Comunicating the information about the thresholds.
     log(
         f'The thresholds have been '
         + f'{"calculated" if calculate_threshold_automatically else "set"}'
         + ' to the following:')
-    log(f'Threshold for overfitting dataset is {class_overfit_amount}.')
+    log(f'Threshold for duplicating dataset is {class_duplicate_amount}.')
     log(f'Threshold for excluding dataset is {class_exclude_amount}.')
 
     # Computing the multiplier of amounts of files needed to transfer for 
@@ -426,7 +426,7 @@ def map_dir():
             sub_acc.append(i)
             amounts.append(0)
         elif class_exclude_amount != 0 \
-                and len(source_files[i]) < class_overfit_amount:
+                and len(source_files[i]) < class_duplicate_amount:
             sub_avg.append(i)
             amounts.append(int(average / len(source_files[i])))
         else:
@@ -537,7 +537,7 @@ def print_dirs():
         if len(source_files[i]) < average/3*2:
             log(' (excluding)', start='', hide_box=True)
         elif len(source_files[i]) < average:
-            log(' (overfitting)', start='', hide_box=True)
+            log(' (duplicating)', start='', hide_box=True)
         else:
             log('', start='', hide_box=True)
         log('', hide_box=True, end='\t')
