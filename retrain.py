@@ -193,21 +193,23 @@ def arg_help(next_arg):
     -n --name [NAME]\t= Set the name of the model. This will appear as the \
 filename of the exported model.
     -l --load [PATH]\t= Takes a relative path to a saved model.
-    -b --base [PATH]\t= Takes a relative path to a base model for\
-tranfer-learning.
+    -b --base [PATH]\t= Takes a name of a model for transfer learning. \
+It can be: xception, vgg16, mobilenet2, inception3 or resnet50.
+    -B --base-custom [PATH]\t= Takes a path to a specific base model. \
+    You should use --base before to set a proper preprocessing function.
     -e --epochs [AMOUNT]\t= Amount of training epochs.
     -d --dense [AMOUNT]\t= Amount of neurons in the finall dense layer.
-    -c --count [AMOUNT]\t= The amount of dense layers at the end.
-    -C --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint \
+    -c --load-checkpoint [PATH]\t= Takes a relative path to a checkpoint \
 of a current model.
     -v --version\t= Displays the Tensorflow version number.
-        --skip-finetuning\t= When present the script will skip finetuning.
+    -f  --skip-finetuning\t= When present the script will skip finetuning.
+    -t  --skip-training\t= When present the script will skip training.
+        --skip-validation\t= When present the script will not do validation.
         --lr-training [VALUE]\t= Sets a given float as a learning rate for \
 the initial training. This is usually a very small number.
         --lr-finetuning [VALUE]\t= Sets a given float as a learning rate \
 for the finetuning training. This is usually a very small number.
-    -s --skip\t= Skips the training phase.
-    -t --tensorboard\t= Runs tensor board on current logdir.''')
+    -s --skip\t= Skips the training phase.''' )
     return True
 
 
@@ -328,22 +330,6 @@ def arg_set_pretrained_model(next_arg):
     global pretrained_model_name
     pretrained_model_name = next_arg
     return True
-
-
-'''
-# Sets the classification dense layer size to specified value.
-def arg_dense(next_arg):
-    global dense_amount
-    dense_amount = int(next_arg)
-    return True
-
-
-# The count of dense layers at the recognition layer.
-def arg_dense_count(next_arg):
-    global dense_count
-    dense_count = int(next_arg)
-    return True
-'''
 
 
 # Loads a specified model as the base model.
@@ -670,10 +656,6 @@ def build_model():
     return model
 
 # Use a custom TensorFlow function for training.
-'''
-def train_with_tf(model, optimizrer, train, ds, epoch, lr, sample_weight,
-    optimizer):
-'''
 def train_with_tf(model, optimizer, generator, generator_steps,
     generator_validation, generator_validation_steps, class_weight,
     epochs, starting_epoch):
