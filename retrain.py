@@ -76,7 +76,7 @@ checkpoint_path = 'checkpoints/'
 # Default export model directory.
 saved_model_path = 'saved_models/'
 # Default model filename.
-name = 'kockopsy'
+name = 'model'
 # Selecting a training function. Can be either 'keras' or 'tf'.
 training_function = 'keras'
 # Name of the pretrained model to be used. Only specific models are supported.
@@ -148,7 +148,7 @@ dense_amount_list = [64]
 # Name of the parent dir to the model dir.
 model_class_name = None
 '''
-# A string for 
+# A string for
 dense_amount_list_str = ''
 '''
 # A list of callbacks applied to the model during keras training
