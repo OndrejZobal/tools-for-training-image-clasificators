@@ -52,7 +52,7 @@ ratio = [
 
 # When true 'class_duplicate_amount' or 'class_exclude_amount' will be replaced
 # with automatically calculated value if set to 0.
-calculate_threshold_automatically = True
+calculate_threshold_automatically = False
 # Zero means don't duplicate, if 'calculate_threshold_automatically' is False.
 class_duplicate_amount = 0
 # Zero means don"t exclude, if 'calculate_threshold_automatically' is False.
@@ -425,10 +425,10 @@ def map_dir():
                 and len(source_files[i]) < class_exclude_amount:
             sub_acc.append(i)
             amounts.append(0)
-        elif class_exclude_amount != 0 \
+        elif class_duplicate_amount != 0 \
                 and len(source_files[i]) < class_duplicate_amount:
             sub_avg.append(i)
-            amounts.append(int(average / len(source_files[i])))
+            amounts.append(class_duplicate_amount / len(source_files[i]))
         else:
             amounts.append(1)
 
@@ -525,6 +525,7 @@ def make_dataset(index):
 # Prints a list of the classes with the amounts of samples and their standing
 # according to the threshold.
 def print_dirs():
+    global class_duplicate_amount, class_exclude_amount
     total_sum = 0
     for i, dir in enumerate(source_dirs):
         total_sum += len(source_files[i])
@@ -534,9 +535,9 @@ def print_dirs():
     log(f'List of directories:\n\t', end='')
     for i, dir in enumerate(source_dirs):
         log(f'{dir}\t\t\thas {len(source_files[i])} samples', end='')
-        if len(source_files[i]) < average/3*2:
+        if len(source_files[i]) < class_exclude_amount:
             log(' (excluding)', start='', hide_box=True)
-        elif len(source_files[i]) < average:
+        elif len(source_files[i]) < class_duplicate_amount:
             log(' (duplicating)', start='', hide_box=True)
         else:
             log('', start='', hide_box=True)
@@ -581,12 +582,12 @@ def progress_bar():
             + f'{" " * (100 - int(percentage_class))}]'\
             + f'{int(percentage_class)}%'\
             + f' - {int(progress_class)}/{len(source_files)}'\
-            + f' ({source_dirs[progress_class-1]}){" "*10}\n'
+            + f' ({source_dirs[progress_class-1]})\n'
 
         string += f'\t[~] File progress\t[{"█" * (int(percentage_file))}'\
             + f'{" " * (100 - int(percentage_file))}]'\
             +  f'{int(percentage_file)}% -'\
-            + f' {int(progress_file)}/{files_total}{" "*10}\n'
+            + f' {int(progress_file)}/{files_total}\n'
         log(string, end='', start='', hide_box=True)
 
         # Giving the CPU a break before redrawing.
