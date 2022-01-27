@@ -148,7 +148,7 @@ dense_amount_list = [64]
 # Name of the parent dir to the model dir.
 model_class_name = None
 '''
-# A string for 
+# A string for
 dense_amount_list_str = ''
 '''
 # A list of callbacks applied to the model during keras training
@@ -518,7 +518,7 @@ def init_training_variables():
         patience=3))
 
     dense_amount_list_str = str(dense_amount_list).replace("[", "")\
-        .replace("]", "").replace(" ", "-")
+        .replace("]", "").replace(" ", "")
 
     model_class_name = f'{dataset_dir}_{pretrained_model_name}_d='\
         + f'{dense_amount_list_str}'
@@ -754,7 +754,7 @@ def export_model(model, accuracy, loss, actual_epochs):
     timestamp_path = pathlib.Path(
         f'{saved_model_path}/{model_class_name}/'
         + f'{name}_a={accuracy}%_'
-        + f'e={initial_epoch+epochs_training+epochs_finetuning}_{timestamp}')
+        + f'e={actual_epochs}_{timestamp}')
     log(f'Exporting trained model at {timestamp_path}')
     os.mkdir(f'{timestamp_path}')
     # Save the model.
