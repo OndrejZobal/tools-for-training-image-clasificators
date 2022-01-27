@@ -76,7 +76,7 @@ checkpoint_path = 'checkpoints/'
 # Default export model directory.
 saved_model_path = 'saved_models/'
 # Default model filename.
-name = 'kockopsy'
+name = 'model'
 # Selecting a training function. Can be either 'keras' or 'tf'.
 training_function = 'keras'
 # Name of the pretrained model to be used. Only specific models are supported.
