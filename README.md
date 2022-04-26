@@ -1,7 +1,3 @@
-**! THIS IS A WORK IN PROGRESS. NOT EVERYTING FUNCTIONS AS DESCRIBED BELLOW !**
-
----
-
 # Utilities for training an image clasifier with TensorFlow
 
 ## Purpose
